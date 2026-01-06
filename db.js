@@ -1,23 +1,23 @@
 const mysql = require('mysql2');
 
-// Quitamos la línea de dotenv para que no busque archivos .env inexistentes
+// Conexión directa sin depender de variables externas de Render
 const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT || 11648,
+    host: 'gomeria-db-gomeriaebenezer9-3fac.c.aivencloud.com',
+    user: 'avnadmin',
+    password: 'AVNS_7SPNkFuufXMGXeMu3hG',
+    database: 'defaultdb',
+    port: 11648,
     ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false // Indispensable para Aiven
     }
 });
 
 connection.connect((err) => {
     if (err) {
-        console.error('❌ Error de conexión:', err.message);
+        console.error('❌ Error de conexión directa:', err.message);
         return;
     }
-    console.log('✅ ¡CONEXIÓN EXITOSA! La Gomería está online.');
+    console.log('✅ ¡CONEXIÓN MANUAL EXITOSA! Gomería online.');
 });
 
 module.exports = connection;
