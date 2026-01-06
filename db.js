@@ -1,23 +1,22 @@
 const mysql = require('mysql2');
 
-// Conexión directa sin depender de variables externas de Render
 const connection = mysql.createConnection({
-    host: 'gomeria-db-gomeriaebenezer9-3fac.c.aivencloud.com',
+    host: '159.69.13.153', // IP directa para evitar el error ENOTFOUND
     user: 'avnadmin',
     password: 'AVNS_7SPNkFuufXMGXeMu3hG',
     database: 'defaultdb',
     port: 11648,
     ssl: {
-        rejectUnauthorized: false // Indispensable para Aiven
+        rejectUnauthorized: false
     }
 });
 
 connection.connect((err) => {
     if (err) {
-        console.error('❌ Error de conexión directa:', err.message);
+        console.error('❌ Error con IP directa:', err.message);
         return;
     }
-    console.log('✅ ¡CONEXIÓN MANUAL EXITOSA! Gomería online.');
+    console.log('✅ ¡CONEXIÓN EXITOSA POR IP! Gomería online.');
 });
 
 module.exports = connection;
