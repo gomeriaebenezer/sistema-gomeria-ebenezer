@@ -1,4 +1,4 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise'); // Cambiamos a la versión de promesas directa
 
 const pool = mysql.createPool({
     host: 'gomeria-db-gomeriaebenezer9-3fac.c.aivencloud.com', 
@@ -15,14 +15,14 @@ const pool = mysql.createPool({
     connectTimeout: 30000
 });
 
-pool.getConnection((err, connection) => {
-    if (err) {
-        console.error('❌ Error de conexión:', err.code, err.message);
-    } else {
+// Verificación simple de conexión
+pool.getConnection()
+    .then(conn => {
         console.log('✅ ¡CONEXIÓN EXITOSA! Gomería Ebenezer está Online.');
-        connection.release();
-    }
-});
+        conn.release();
+    })
+    .catch(err => {
+        console.error('❌ Error de conexión:', err.message);
+    });
 
-module.exports = pool.promise();
-
+module.exports = pool;
