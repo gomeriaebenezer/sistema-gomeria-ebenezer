@@ -19,6 +19,7 @@ const initDB = async () => {
             stock_actual INT DEFAULT 0
         ) ENGINE=InnoDB`);
 
+        // Tabla movimientos simplificada para evitar errores de ventas
         await db.query(`CREATE TABLE IF NOT EXISTS movimientos (
             id_movimiento INT AUTO_INCREMENT PRIMARY KEY,
             id_producto INT,
@@ -66,7 +67,7 @@ app.post('/productos', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// 3. VENDER / COBRAR
+// 3. VENDER / COBRAR (Corregido para evitar errores)
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -74,26 +75,32 @@ app.put('/productos/vender/:id', async (req, res) => {
         if (rows.length === 0) return res.status(404).send("No encontrado");
         
         const p = rows[0];
-        const ganancia = parseFloat(p.precio_venta) - parseFloat(p.precio_costo);
+        const monto = parseFloat(p.precio_venta) || 0;
+        const costo = parseFloat(p.precio_costo) || 0;
+        const ganancia = monto - costo;
         
+        // Verificación de stock (si no es servicio)
         if (p.categoria !== 'Servicio' && p.stock_actual <= 0) {
             return res.status(400).send("Sin stock disponible");
         }
 
-        // Descontar stock si no es servicio
+        // 1. Descontar stock
         if (p.categoria !== 'Servicio') {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        // Registrar movimiento
+        // 2. Registrar movimiento (Venta)
         await db.query('INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion) VALUES (?, "VENTA", ?, ?, ?)', 
-            [id, `Venta: ${p.nombre}`, p.precio_venta, ganancia]);
+            [id, `Venta: ${p.nombre}`, monto, ganancia]);
         
         res.send('✅ Venta procesada');
-    } catch (err) { res.status(500).send(err.message); }
+    } catch (err) { 
+        console.error("Error en venta:", err);
+        res.status(500).send("Error interno al procesar la venta"); 
+    }
 });
 
-// 4. EDITAR / ACTUALIZAR (Manual)
+// 4. EDITAR / ACTUALIZAR
 app.put('/productos/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
@@ -135,6 +142,5 @@ app.get('/movimientos/:filtro', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// Puerto dinámico para Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Servidor Gomería activo en puerto ${PORT}`));
