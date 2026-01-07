@@ -12,21 +12,16 @@ const pool = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    connectTimeout: 30000 // Le damos 30 segundos para conectar
+    connectTimeout: 30000
 });
 
 pool.getConnection((err, connection) => {
     if (err) {
         console.error('❌ Error de conexión:', err.code, err.message);
     } else {
-        console.log('✅ ¡CONEXIÓN EXITOSA! La Gomería está online.');
+        console.log('✅ ¡CONEXIÓN EXITOSA! Gomería Ebenezer está Online.');
         connection.release();
     }
 });
 
 module.exports = pool.promise();
-    }
-});
-
-module.exports = pool.promise();
-
