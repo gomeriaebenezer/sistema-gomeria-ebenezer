@@ -5,23 +5,42 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- RUTA PRINCIPAL (Para que no salga "Cannot GET /") ---
-app.get('/', (req, res) => {
-    res.send(`
-        <html>
-            <head><title>Gomería Ebenezer - Panel</title></head>
-            <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>✅ Servidor de Gomería Ebenezer Online</h1>
-                <p>La base de datos está conectada correctamente.</p>
-                <div style="margin-top: 20px;">
-                    <a href="/productos" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Ver Stock de Productos</a>
-                </div>
-                <br><br>
-                <p>Usa las rutas <b>/productos</b> o <b>/movimientos/hoy</b> para ver los datos.</p>
-            </body>
-        </html>
-    `);
-});
+// --- PLAN B: SCRIPT AUTOMÁTICO PARA CREAR TABLAS EN AIVEN ---
+const initDB = async () => {
+    try {
+        console.log("🛠️ Verificando tablas en la base de datos...");
+        
+        // Crear tabla de productos
+        await db.query(`CREATE TABLE IF NOT EXISTS productos (
+            id_producto INT AUTO_INCREMENT PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            categoria VARCHAR(100),
+            precio_costo DECIMAL(10,2),
+            precio_venta DECIMAL(10,2),
+            stock_actual INT DEFAULT 0
+        )`);
+
+        // Crear tabla de movimientos
+        await db.query(`CREATE TABLE IF NOT EXISTS movimientos (
+            id_movimiento INT AUTO_INCREMENT PRIMARY KEY,
+            id_producto INT,
+            tipo_movimiento VARCHAR(50),
+            descripcion TEXT,
+            monto_operacion DECIMAL(10,2),
+            ganancia_operacion DECIMAL(10,2),
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        console.log("✅ Tablas listas y verificadas.");
+    } catch (err) {
+        console.error("❌ Error al inicializar tablas:", err.message);
+    }
+};
+
+// Ejecutamos la creación de tablas
+initDB();
+
+// --- RUTAS DEL SISTEMA ---
 
 // 1. VER TODO EL STOCK
 app.get('/productos', (req, res) => {
