@@ -5,7 +5,25 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// 1. VER TODO EL STOCK (Ordenado por ID para usar como Código)
+// --- RUTA PRINCIPAL (Para que no salga "Cannot GET /") ---
+app.get('/', (req, res) => {
+    res.send(`
+        <html>
+            <head><title>Gomería Ebenezer - Panel</title></head>
+            <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+                <h1>✅ Servidor de Gomería Ebenezer Online</h1>
+                <p>La base de datos está conectada correctamente.</p>
+                <div style="margin-top: 20px;">
+                    <a href="/productos" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Ver Stock de Productos</a>
+                </div>
+                <br><br>
+                <p>Usa las rutas <b>/productos</b> o <b>/movimientos/hoy</b> para ver los datos.</p>
+            </body>
+        </html>
+    `);
+});
+
+// 1. VER TODO EL STOCK
 app.get('/productos', (req, res) => {
     db.query('SELECT * FROM productos ORDER BY id_producto ASC', (err, results) => {
         if (err) return res.status(500).send(err);
@@ -13,26 +31,20 @@ app.get('/productos', (req, res) => {
     });
 });
 
-// 2. REGISTRAR O SUMAR STOCK (Evita duplicados por nombre)
+// 2. REGISTRAR O SUMAR STOCK
 app.post('/productos', (req, res) => {
     const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
-    
-    // Verificamos si ya existe el nombre (ignorando mayúsculas)
     db.query('SELECT id_producto, stock_actual FROM productos WHERE LOWER(nombre) = LOWER(?)', [nombre], (err, rows) => {
         if (err) return res.status(500).send(err);
-
         if (rows.length > 0) {
-            // Si ya existe, SUMAMOS el stock nuevo al anterior y actualizamos precios
             const id = rows[0].id_producto;
             const nuevoStock = parseInt(rows[0].stock_actual) + parseInt(stock_actual);
-            
             const sqlUpdate = 'UPDATE productos SET stock_actual=?, precio_costo=?, precio_venta=?, categoria=? WHERE id_producto=?';
             db.query(sqlUpdate, [nuevoStock, precio_costo, precio_venta, categoria, id], (err) => {
                 if (err) return res.status(500).send(err);
                 res.send('✅ Stock actualizado en producto existente');
             });
         } else {
-            // Si no existe, creamos uno nuevo
             const sqlInsert = 'INSERT INTO productos (nombre, categoria, precio_costo, precio_venta, stock_actual) VALUES (?, ?, ?, ?, ?)';
             db.query(sqlInsert, [nombre, categoria, precio_costo, precio_venta, stock_actual], (err) => {
                 if (err) return res.status(500).send(err);
@@ -47,26 +59,16 @@ app.put('/productos/vender/:id', (req, res) => {
     const { id } = req.params;
     db.query('SELECT * FROM productos WHERE id_producto = ?', [id], (err, row) => {
         if (err || row.length === 0) return res.status(500).send("No encontrado");
-        
         const p = row[0];
         const ganancia = parseFloat(p.precio_venta) - parseFloat(p.precio_costo);
-
         if (p.categoria !== 'Servicio' && p.stock_actual <= 0) {
             return res.status(400).send("Sin stock disponible");
         }
-
-        // Descontamos stock si no es servicio
-        const sqlStock = p.categoria === 'Servicio' ? 
-            'SELECT 1' : 
-            'UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?';
-
+        const sqlStock = p.categoria === 'Servicio' ? 'SELECT 1' : 'UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?';
         db.query(sqlStock, [id], (err) => {
             if (err) return res.status(500).send(err);
-            
-            // Registramos el movimiento
             db.query('INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion) VALUES (?, "VENTA", ?, ?, ?)', 
             [id, `Venta: ${p.nombre}`, p.precio_venta, ganancia]);
-            
             res.send('✅ Venta procesada');
         });
     });
@@ -107,11 +109,12 @@ app.get('/movimientos/:filtro', (req, res) => {
     if (filtro === 'hoy') condicion = "WHERE DATE(fecha) = CURDATE()";
     else if (filtro === 'semana') condicion = "WHERE YEARWEEK(fecha, 1) = YEARWEEK(CURDATE(), 1)";
     else if (filtro === 'mes') condicion = "WHERE MONTH(fecha) = MONTH(CURDATE()) AND YEAR(fecha) = YEAR(CURDATE())";
-
     db.query(`SELECT * FROM movimientos ${condicion} ORDER BY fecha DESC`, (err, results) => {
         if (err) return res.status(500).send(err);
         res.json(results);
     });
 });
 
-app.listen(3000, () => console.log("🚀 Servidor Gomería PRO v2 activo"));
+// Puerto dinámico para Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Servidor Gomería PRO v2 activo en puerto ${PORT}`));
