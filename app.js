@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- SCRIPT AUTOMÁTICO: CREAR TABLAS ---
+// --- SCRIPT AUTOMÁTICO: CREAR O REPARAR TABLAS ---
 const initDB = async () => {
     try {
         console.log("🛠️ Verificando tablas en Aiven...");
@@ -19,7 +19,6 @@ const initDB = async () => {
             stock_actual INT DEFAULT 0
         ) ENGINE=InnoDB`);
 
-        // Tabla movimientos simplificada para evitar errores de ventas
         await db.query(`CREATE TABLE IF NOT EXISTS movimientos (
             id_movimiento INT AUTO_INCREMENT PRIMARY KEY,
             id_producto INT,
@@ -52,7 +51,6 @@ app.post('/productos', async (req, res) => {
     const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
     try {
         const [rows] = await db.query('SELECT id_producto, stock_actual FROM productos WHERE LOWER(nombre) = LOWER(?)', [nombre]);
-        
         if (rows.length > 0) {
             const id = rows[0].id_producto;
             const nuevoStock = parseInt(rows[0].stock_actual) + parseInt(stock_actual);
@@ -67,7 +65,7 @@ app.post('/productos', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// 3. VENDER / COBRAR (Corregido para evitar errores)
+// 3. VENDER / COBRAR (Sincronizado con Historial)
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -79,7 +77,6 @@ app.put('/productos/vender/:id', async (req, res) => {
         const costo = parseFloat(p.precio_costo) || 0;
         const ganancia = monto - costo;
         
-        // Verificación de stock (si no es servicio)
         if (p.categoria !== 'Servicio' && p.stock_actual <= 0) {
             return res.status(400).send("Sin stock disponible");
         }
@@ -96,11 +93,11 @@ app.put('/productos/vender/:id', async (req, res) => {
         res.send('✅ Venta procesada');
     } catch (err) { 
         console.error("Error en venta:", err);
-        res.status(500).send("Error interno al procesar la venta"); 
+        res.status(500).send("Error interno al registrar venta"); 
     }
 });
 
-// 4. EDITAR / ACTUALIZAR
+// 4. EDITAR
 app.put('/productos/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
@@ -111,7 +108,7 @@ app.put('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// 5. BORRAR PRODUCTO
+// 5. BORRAR
 app.delete('/productos/:id', async (req, res) => {
     try {
         await db.query('DELETE FROM productos WHERE id_producto = ?', [req.params.id]);
@@ -119,27 +116,27 @@ app.delete('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// 6. FILTRAR MOVIMIENTOS POR RANGO
-app.get('/movimientos/rango', async (req, res) => {
-    const { desde, hasta } = req.query;
-    try {
-        const [results] = await db.query('SELECT * FROM movimientos WHERE DATE(fecha) BETWEEN ? AND ? ORDER BY fecha DESC', [desde, hasta]);
-        res.json(results);
-    } catch (err) { res.status(500).send(err.message); }
-});
-
-// 7. FILTRAR MOVIMIENTOS (HOY, SEMANA, MES)
+// 6. FILTRAR MOVIMIENTOS (Asegurando compatibilidad con vender.html)
 app.get('/movimientos/:filtro', async (req, res) => {
     const { filtro } = req.params;
     let condicion = "";
-    if (filtro === 'hoy') condicion = "WHERE DATE(fecha) = CURDATE()";
-    else if (filtro === 'semana') condicion = "WHERE YEARWEEK(fecha, 1) = YEARWEEK(CURDATE(), 1)";
-    else if (filtro === 'mes') condicion = "WHERE MONTH(fecha) = MONTH(CURDATE()) AND YEAR(fecha) = YEAR(CURDATE())";
+    
+    // Ajuste para la zona horaria de Argentina (opcional pero recomendado)
+    if (filtro === 'hoy') {
+        condicion = "WHERE DATE(fecha) = CURDATE()";
+    } else if (filtro === 'semana') {
+        condicion = "WHERE YEARWEEK(fecha, 1) = YEARWEEK(CURDATE(), 1)";
+    } else if (filtro === 'mes') {
+        condicion = "WHERE MONTH(fecha) = MONTH(CURDATE()) AND YEAR(fecha) = YEAR(CURDATE())";
+    }
 
     try {
         const [results] = await db.query(`SELECT * FROM movimientos ${condicion} ORDER BY fecha DESC`);
         res.json(results);
-    } catch (err) { res.status(500).send(err.message); }
+    } catch (err) { 
+        console.error("Error en movimientos:", err);
+        res.status(500).send(err.message); 
+    }
 });
 
 const PORT = process.env.PORT || 3000;
