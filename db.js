@@ -1,8 +1,7 @@
 const mysql = require('mysql2');
 
-// Usamos createPool para que la conexión sea más estable y se reintente sola
 const pool = mysql.createPool({
-    host: '159.69.13.153', 
+    host: 'gomeria-db-gomeriaebenezer9-3fac.c.aivencloud.com', 
     user: 'avnadmin',
     password: 'AVNS_7SPNkFuufXMGXeMu3hG',
     database: 'defaultdb',
@@ -12,17 +11,22 @@ const pool = mysql.createPool({
     },
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    connectTimeout: 30000 // Le damos 30 segundos para conectar
 });
 
-// Verificación de conexión
 pool.getConnection((err, connection) => {
     if (err) {
-        console.error('❌ Error de conexión:', err.message);
+        console.error('❌ Error de conexión:', err.code, err.message);
     } else {
-        console.log('✅ ¡CONEXIÓN EXITOSA! Gomería Ebenezer está Online.');
+        console.log('✅ ¡CONEXIÓN EXITOSA! La Gomería está online.');
         connection.release();
     }
 });
 
 module.exports = pool.promise();
+    }
+});
+
+module.exports = pool.promise();
+
