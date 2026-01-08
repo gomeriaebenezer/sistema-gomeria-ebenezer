@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// Cargar productos
+// 1. Cargar productos
 app.get('/productos', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
@@ -15,7 +15,7 @@ app.get('/productos', async (req, res) => {
     }
 });
 
-// Vender y Registrar Historial
+// 2. Vender y Registrar Historial
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -37,7 +37,7 @@ app.put('/productos/vender/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// Ver historial de hoy
+// 3. Ver historial de hoy
 app.get('/movimientos/hoy', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() ORDER BY fecha DESC');
@@ -45,8 +45,6 @@ app.get('/movimientos/hoy', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ESTA PARTE ES LA QUE ESTABA DUPLICADA, SOLO DEBE IR UNA VEZ AL FINAL:
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Puerto ${PORT}`));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor listo en puerto ${PORT}`));
