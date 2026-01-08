@@ -51,15 +51,22 @@ app.put('/productos/vender/:id', async (req, res) => {
     }
 });
 
-// 3. CIERRE DE CAJA
+// 3. CIERRE DE CAJA (Historial de hoy)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        const [results] = await db.query('SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() ORDER BY fecha DESC');
+        // Probamos una consulta más simple para asegurar que traiga datos
+        const [results] = await db.query(
+            'SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() ORDER BY id_movimiento DESC'
+        );
+        
+        console.log("Ventas encontradas hoy:", results.length);
         res.json(results);
     } catch (err) { 
+        console.error("Error al cargar historial:", err.message);
         res.status(500).json({ error: err.message }); 
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Puerto ${PORT}`));
+
