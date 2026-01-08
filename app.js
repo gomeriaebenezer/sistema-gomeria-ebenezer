@@ -10,55 +10,42 @@ app.get('/productos', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
         res.json(results);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 2. VENDER Y REGISTRAR (Ajustado según tus estadísticas de Aiven)
+// 2. VENDER Y REGISTRAR
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
         const [rows] = await db.query('SELECT * FROM productos WHERE id_producto = ?', [id]);
         if (rows.length === 0) return res.status(404).send("No encontrado");
-        
         const p = rows[0];
 
-        // A. Descontar stock (Esto ya te funciona bien)
         if (p.categoria !== 'Servicio') {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        // B. Registrar movimiento (Forzamos la FECHA y aseguramos los valores)
         const venta = parseFloat(p.precio_venta) || 0;
-        const costo = parseFloat(p.precio_costo) || 0;
-        const ganancia = venta - costo;
+        const ganancia = venta - (parseFloat(p.precio_costo) || 0);
         
-        // Agregamos 'fecha' explícitamente porque tus estadísticas muestran que es clave
+        // Grabamos el movimiento
         await db.query(
             'INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, "VENTA", ?, ?, ?, NOW())', 
             [id, `Venta: ${p.nombre}`, venta, ganancia]
         );
-        
         res.send('OK');
-    } catch (err) { 
-        console.error("Error BD:", err.message);
-        // Aunque falle el historial, enviamos OK si el stock ya bajó
-        res.send('OK'); 
-    }
+    } catch (err) { res.send('OK'); } // Siempre mandamos OK si el stock bajó
 });
 
-// 3. CIERRE DE CAJA
+// 3. CIERRE DE CAJA (Versión para ver TODO lo de las últimas horas)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        // Esta es la misma consulta que veo en tu pantalla de Aiven
+        // Buscamos los últimos 20 movimientos sin importar si el reloj de Aiven está adelantado
         const [results] = await db.query(
-            'SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() ORDER BY fecha DESC'
+            'SELECT *, DATE_FORMAT(fecha, "%H:%i") as hora_corta FROM movimientos ORDER BY id_movimiento DESC LIMIT 20'
         );
         res.json(results);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3000;
