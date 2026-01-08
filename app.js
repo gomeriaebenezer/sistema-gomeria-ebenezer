@@ -5,17 +5,16 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// OBTENER PRODUCTOS
+// RUTA DE PRUEBA: Entrá a tu-url.render.com/test para ver si esto cambió
+app.get('/test', (req, res) => res.send("EL SERVIDOR ESTA ACTUALIZADO - VERSION 2.0"));
+
 app.get('/productos', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
         res.json(results);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// VENDER
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -36,22 +35,21 @@ app.put('/productos/vender/:id', async (req, res) => {
         );
         res.send('OK');
     } catch (err) { 
-        console.error("Error en venta:", err);
+        console.error(err);
         res.status(200).send('OK'); 
     }
 });
 
-// HISTORIAL SIN FILTRO (Para forzar que aparezca algo)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        // Quitamos el WHERE de la fecha para que traiga las últimas ventas sí o sí
-        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 50');
+        // Traemos absolutamente todos los movimientos para ver si hay algo en la tabla
+        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 100');
         res.json(results);
     } catch (err) { 
-        console.error("Error en historial:", err);
+        console.error(err);
         res.status(500).json([]); 
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Puerto ${PORT}`));
