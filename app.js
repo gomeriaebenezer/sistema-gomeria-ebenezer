@@ -5,9 +5,9 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// RUTA DE PRUEBA: Entrá a tu-url.render.com/test para ver si esto cambió
-app.get('/test', (req, res) => res.send("EL SERVIDOR ESTA ACTUALIZADO - VERSION 2.0"));
+app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION LOGS CORREGIDA"));
 
+// OBTENER PRODUCTOS
 app.get('/productos', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
@@ -15,6 +15,7 @@ app.get('/productos', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// VENDER (Corregido el error de columna 'VENTA')
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -28,22 +29,24 @@ app.put('/productos/vender/:id', async (req, res) => {
 
         const venta = parseFloat(p.precio_venta) || 0;
         const ganancia = venta - (parseFloat(p.precio_costo) || 0);
+        const descrip = `Venta: ${p.nombre}`;
+
+        // Usamos SET para que la consulta sea más limpia y evitar errores de comillas
+        const queryInsert = "INSERT INTO movimientos SET id_producto=?, tipo_movimiento='VENTA', descripcion=?, monto_operacion=?, ganancia_operacion=?, fecha=NOW()";
         
-        await db.query(
-            'INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, "VENTA", ?, ?, ?, NOW())', 
-            [id, `Venta: ${p.nombre}`, venta, ganancia]
-        );
+        await db.query(queryInsert, [id, descrip, venta, ganancia]);
+        
         res.send('OK');
     } catch (err) { 
-        console.error(err);
-        res.status(200).send('OK'); 
+        console.error("DETALLE ERROR SQL:", err);
+        res.status(500).send("Error en el servidor"); 
     }
 });
 
+// HISTORIAL
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        // Traemos absolutamente todos los movimientos para ver si hay algo en la tabla
-        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 100');
+        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 50');
         res.json(results);
     } catch (err) { 
         console.error(err);
