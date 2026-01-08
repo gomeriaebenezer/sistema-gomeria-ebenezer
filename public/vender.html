@@ -5,40 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomería - Terminal de Ventas</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: url('fondo_venta.jpg') no-repeat center center fixed; 
-            background-size: cover;
-            padding: 10px; margin: 0; color: #333;
-        }
-        body::before {
-            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.2); z-index: -1;
-        }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; padding: 10px; margin: 0; color: #333; }
         .container { max-width: 900px; margin: auto; }
-        .card { 
-            background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); 
-            padding: 15px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); 
-            margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.4);
-        }
-        .search-box { 
-            width: 100%; padding: 15px; font-size: 1.1em; 
-            border: 2px solid #28a745; border-radius: 10px; 
-            margin-bottom: 15px; box-sizing: border-box; outline: none;
-        }
-        .table-wrapper { overflow-x: auto; background: white; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; min-width: 400px; }
+        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .search-box { width: 100%; padding: 15px; font-size: 1.1em; border: 2px solid #28a745; border-radius: 10px; margin-bottom: 15px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; }
         th { background: #f8f9fa; color: #28a745; }
-        .btn-cobrar { 
-            background: #28a745; color: white; border: none; 
-            padding: 15px 5px; border-radius: 8px; font-weight: bold; 
-            cursor: pointer; width: 100%; font-size: 1em;
-            box-shadow: 0 4px 0 #1e7e34; transition: 0.1s;
-        }
-        .btn-cobrar:active { transform: translateY(3px); box-shadow: 0 1px 0 #1e7e34; }
+        .btn-cobrar { background: #28a745; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
         .total-rendir { font-size: 1.6em; color: #1e7e34; font-weight: bold; margin-top: 10px; text-align: right; }
-        .low-stock { color: #dc3545; font-weight: bold; background: #fff2f2 !important; }
+        .low-stock { color: #dc3545; background: #fff2f2 !important; }
     </style>
 </head>
 <body>
@@ -46,21 +22,17 @@
     <div class="card">
         <h1 style="text-align: center; color: #28a745;">⚒️ Terminal de Ventas</h1>
         <input type="text" id="buscador" class="search-box" placeholder="🔎 Buscar producto..." onkeyup="buscar()">
-        <div class="table-wrapper">
-            <table>
-                <thead><tr><th>Artículo</th><th>Precio</th><th>Stock</th><th>Acción</th></tr></thead>
-                <tbody id="tablaVentas"></tbody>
-            </table>
-        </div>
+        <table>
+            <thead><tr><th>Artículo</th><th>Precio</th><th>Stock</th><th>Acción</th></tr></thead>
+            <tbody id="tablaVentas"></tbody>
+        </table>
     </div>
     <div class="card">
         <h2>💰 Cierre de Caja</h2>
-        <div class="table-wrapper">
-            <table>
-                <thead><tr><th>Hora</th><th>Descripción</th><th>Monto</th></tr></thead>
-                <tbody id="tablaCierre"></tbody>
-            </table>
-        </div>
+        <table>
+            <thead><tr><th>Hora</th><th>Descripción</th><th>Monto</th></tr></thead>
+            <tbody id="tablaCierre"></tbody>
+        </table>
         <div class="total-rendir" id="totalRendir">Total: $0</div>
     </div>
 </div>
@@ -82,7 +54,7 @@
                 const sClass = (!isServ && p.stock_actual < 3) ? 'low-stock' : '';
                 tabla.innerHTML += `<tr class="${sClass}">
                     <td><strong>${p.nombre}</strong><br><small>${p.categoria}</small></td>
-                    <td>$${parseFloat(p.precio_venta).toFixed(0)}</td>
+                    <td>$${parseFloat(p.precio_venta || 0).toFixed(0)}</td>
                     <td>${isServ ? '∞' : p.stock_actual}</td>
                     <td><button class="btn-cobrar" onclick="vender(${p.id_producto}, '${p.nombre}')">COBRAR</button></td>
                 </tr>`;
@@ -94,12 +66,17 @@
         try {
             const res = await fetch('/movimientos/hoy');
             const movs = await res.json();
+            console.log("Datos recibidos de movimientos:", movs); // Esto es para ver en consola qué llega
+            
             const tabla = document.getElementById('tablaCierre');
             let total = 0;
             tabla.innerHTML = '';
+            
             movs.forEach(m => {
-                if (m.tipo_movimiento === 'VENTA') {
-                    const monto = parseFloat(m.monto_operacion) || 0;
+                // Verificamos "VENTA" sin importar si está en mayúsculas o minúsculas
+                if (m.tipo_movimiento && m.tipo_movimiento.toUpperCase() === 'VENTA') {
+                    // Probamos ambos nombres de columna por si acaso
+                    const monto = parseFloat(m.monto_operacion || m.monto || 0);
                     total += monto;
                     
                     let horaStr = "--:--";
@@ -125,7 +102,8 @@
         try {
             const res = await fetch(`/productos/vender/${id}`, { method: 'PUT' });
             if (res.ok) {
-                await cargarTodo();
+                // Esperamos un segundo para que la DB se actualice antes de pedir el cierre
+                setTimeout(cargarTodo, 500);
             } else {
                 alert("Error en la venta");
             }
@@ -135,10 +113,12 @@
     function buscar() {
         const b = document.getElementById('buscador').value.toLowerCase();
         const filas = document.getElementById('tablaVentas').getElementsByTagName('tr');
-        for (let f of filas) { f.style.display = f.innerText.toLowerCase().includes(b) ? '' : 'none'; }
+        for (let f of filas) { 
+            if (f.innerText.toLowerCase().includes(b)) f.style.display = '';
+            else f.style.display = 'none';
+        }
     }
 
-    // ESTO ES LO QUE FALTABA PARA QUE FUNCIONE SOLO:
     window.onload = cargarTodo;
 </script>
 </body>
