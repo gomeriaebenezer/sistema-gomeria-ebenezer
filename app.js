@@ -15,7 +15,7 @@ app.get('/productos', async (req, res) => {
     }
 });
 
-// 2. VENDER (Versión simplificada para evitar Error 500)
+// 2. VENDER Y REGISTRAR MOVIMIENTO (Reforzado)
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -23,50 +23,41 @@ app.put('/productos/vender/:id', async (req, res) => {
         if (rows.length === 0) return res.status(404).send("No encontrado");
         
         const p = rows[0];
+        if (p.categoria !== 'Servicio' && p.stock_actual <= 0) return res.status(400).send("Sin stock");
 
         // A. Descontar stock
         if (p.categoria !== 'Servicio') {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        // B. Intentar guardar historial (si falla, que no bloquee la venta)
-        try {
-            const monto = p.precio_venta || 0;
-            const ganancia = (p.precio_venta || 0) - (p.precio_costo || 0);
-            const desc = `Venta: ${p.nombre}`;
-            
-            // Usamos solo las columnas básicas que suelen ser obligatorias
-            await db.query(
-                'INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion) VALUES (?, "VENTA", ?, ?, ?)', 
-                [id, desc, monto, ganancia]
-            );
-        } catch (movErr) {
-            console.error("Error al grabar historial:", movErr.message);
-            // No enviamos error 500 aquí para que la venta al menos descuente stock
-        }
+        // B. Registrar movimiento (Usamos NOW() de SQL para evitar líos de hora)
+        const venta = parseFloat(p.precio_venta) || 0;
+        const ganancia = venta - (parseFloat(p.precio_costo) || 0);
+        
+        await db.query(
+            'INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, "VENTA", ?, ?, ?, NOW())', 
+            [id, `Venta: ${p.nombre}`, venta, ganancia]
+        );
         
         res.send('OK');
     } catch (err) { 
-        res.status(500).send("Error crítico: " + err.message); 
+        console.error(err);
+        res.status(500).send(err.message); 
     }
 });
 
-// 3. CIERRE DE CAJA (Historial de hoy)
+// 3. CIERRE DE CAJA (Más flexible con la fecha)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        // Probamos una consulta más simple para asegurar que traiga datos
+        // Buscamos los últimos 50 movimientos de hoy para asegurarnos de que se vean
         const [results] = await db.query(
-            'SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() ORDER BY id_movimiento DESC'
+            'SELECT * FROM movimientos WHERE DATE(fecha) = CURDATE() OR fecha >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY fecha DESC LIMIT 50'
         );
-        
-        console.log("Ventas encontradas hoy:", results.length);
         res.json(results);
     } catch (err) { 
-        console.error("Error al cargar historial:", err.message);
         res.status(500).json({ error: err.message }); 
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Puerto ${PORT}`));
-
