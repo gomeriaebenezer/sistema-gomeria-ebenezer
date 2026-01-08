@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
     host: 'gomeria-db-gomeriaebenezer9-3fac.c.aivencloud.com', 
-    user: 'avnadmin',
+    user: 'avnadmin', 
     password: 'AVNS_7SPNkFuufXMGXeMu3hG',
     database: 'defaultdb',
     port: 11648,
@@ -12,9 +12,5 @@ const pool = mysql.createPool({
     queueLimit: 0,
     connectTimeout: 30000
 });
-
-module.exports = pool;
-        console.error('❌ Error de conexión:', err.message);
-    });
 
 module.exports = pool;
