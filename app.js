@@ -30,7 +30,6 @@ app.put('/productos/vender/:id', async (req, res) => {
         const venta = parseFloat(p.precio_venta) || 0;
         const ganancia = venta - (parseFloat(p.precio_costo) || 0);
         
-        // Usamos NOW() para que la base de datos asigne la hora exacta del servidor
         await db.query(
             'INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, "VENTA", ?, ?, ?, NOW())', 
             [id, `Venta: ${p.nombre}`, venta, ganancia]
@@ -38,18 +37,15 @@ app.put('/productos/vender/:id', async (req, res) => {
         res.send('OK');
     } catch (err) { 
         console.error("Error en venta:", err);
-        // Enviamos 200 para evitar que la interfaz se bloquee si el stock ya se descontó
         res.status(200).send('OK'); 
     }
 });
 
-// HISTORIAL CORREGIDO (Zona Horaria Argentina vs Aiven)
+// HISTORIAL SIN FILTRO (Para forzar que aparezca algo)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        // Buscamos los movimientos de las últimas 24 horas. 
-        // Esto soluciona que después de las 21:00 hs de Argentina la tabla aparezca vacía.
-        const sql = "SELECT * FROM movimientos WHERE fecha >= NOW() - INTERVAL 1 DAY ORDER BY fecha DESC LIMIT 50";
-        const [results] = await db.query(sql);
+        // Quitamos el WHERE de la fecha para que traiga las últimas ventas sí o sí
+        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 50');
         res.json(results);
     } catch (err) { 
         console.error("Error en historial:", err);
