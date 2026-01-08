@@ -87,7 +87,7 @@
                     <td><button class="btn-cobrar" onclick="vender(${p.id_producto}, '${p.nombre}')">COBRAR</button></td>
                 </tr>`;
             });
-        } catch (e) { console.error("Error productos:", e); }
+        } catch (e) { console.error(e); }
     }
 
     async function cargarCierre() {
@@ -97,14 +97,11 @@
             const tabla = document.getElementById('tablaCierre');
             let total = 0;
             tabla.innerHTML = '';
-            
-            // Filtramos y recorremos de forma segura
             movs.forEach(m => {
                 if (m.tipo_movimiento === 'VENTA') {
                     const monto = parseFloat(m.monto_operacion) || 0;
                     total += monto;
                     
-                    // Formateo de hora resistente a errores
                     let horaStr = "--:--";
                     if (m.fecha) {
                         const d = new Date(m.fecha);
@@ -120,7 +117,7 @@
                 }
             });
             document.getElementById('totalRendir').innerText = `Total a Entregar: $${total.toFixed(0)}`;
-        } catch (e) { console.error("Error cierre:", e); }
+        } catch (e) { console.error(e); }
     }
 
     async function vender(id, nombre) {
@@ -128,10 +125,9 @@
         try {
             const res = await fetch(`/productos/vender/${id}`, { method: 'PUT' });
             if (res.ok) {
-                // Si la venta fue exitosa, refrescamos todo al instante
                 await cargarTodo();
             } else {
-                alert("Error: Puede que no haya stock disponible.");
+                alert("Error en la venta");
             }
         } catch (e) { alert("Error de conexión"); }
     }
@@ -139,12 +135,10 @@
     function buscar() {
         const b = document.getElementById('buscador').value.toLowerCase();
         const filas = document.getElementById('tablaVentas').getElementsByTagName('tr');
-        for (let f of filas) { 
-            f.style.display = f.innerText.toLowerCase().includes(b) ? '' : 'none'; 
-        }
+        for (let f of filas) { f.style.display = f.innerText.toLowerCase().includes(b) ? '' : 'none'; }
     }
 
-    // Arranca la carga apenas abre la página
+    // ESTO ES LO QUE FALTABA PARA QUE FUNCIONE SOLO:
     window.onload = cargarTodo;
 </script>
 </body>
