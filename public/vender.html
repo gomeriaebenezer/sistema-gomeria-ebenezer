@@ -15,6 +15,7 @@
         .btn-cobrar { background: #28a745; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
         .total-rendir { font-size: 1.6em; color: #1e7e34; font-weight: bold; margin-top: 10px; text-align: right; }
         .low-stock { color: #dc3545; background: #fff2f2 !important; }
+        .btn-print { background: #007bff; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -28,8 +29,11 @@
         </table>
     </div>
     <div class="card">
-        <h2>💰 Cierre de Caja</h2>
-        <table>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>💰 Cierre de Caja (Hoy)</h2>
+            <button class="btn-print" onclick="imprimirCierre()">🖨️ IMPRIMIR CIERRE</button>
+        </div>
+        <table id="tablaParaImprimir">
             <thead><tr><th>Hora</th><th>Descripción</th><th>Monto</th></tr></thead>
             <tbody id="tablaCierre"></tbody>
         </table>
@@ -66,32 +70,15 @@
         try {
             const res = await fetch('/movimientos/hoy');
             const movs = await res.json();
-            console.log("Datos recibidos de movimientos:", movs); // Esto es para ver en consola qué llega
-            
             const tabla = document.getElementById('tablaCierre');
             let total = 0;
             tabla.innerHTML = '';
-            
             movs.forEach(m => {
-                // Verificamos "VENTA" sin importar si está en mayúsculas o minúsculas
-                if (m.tipo_movimiento && m.tipo_movimiento.toUpperCase() === 'VENTA') {
-                    // Probamos ambos nombres de columna por si acaso
-                    const monto = parseFloat(m.monto_operacion || m.monto || 0);
-                    total += monto;
-                    
-                    let horaStr = "--:--";
-                    if (m.fecha) {
-                        const d = new Date(m.fecha);
-                        horaStr = d.getHours().toString().padStart(2, '0') + ":" + 
-                                  d.getMinutes().toString().padStart(2, '0');
-                    }
-
-                    tabla.innerHTML += `<tr>
-                        <td>${horaStr}</td>
-                        <td>${m.descripcion || 'Venta'}</td>
-                        <td>$${monto.toFixed(0)}</td>
-                    </tr>`;
-                }
+                const monto = parseFloat(m.monto_operacion || 0);
+                total += monto;
+                const d = new Date(m.fecha);
+                const horaStr = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
+                tabla.innerHTML += `<tr><td>${horaStr}</td><td>${m.descripcion}</td><td>$${monto.toFixed(0)}</td></tr>`;
             });
             document.getElementById('totalRendir').innerText = `Total a Entregar: $${total.toFixed(0)}`;
         } catch (e) { console.error(e); }
@@ -101,22 +88,29 @@
         if (!confirm(`¿Confirmar cobro de: ${nombre}?`)) return;
         try {
             const res = await fetch(`/productos/vender/${id}`, { method: 'PUT' });
-            if (res.ok) {
-                // Esperamos un segundo para que la DB se actualice antes de pedir el cierre
-                setTimeout(cargarTodo, 500);
-            } else {
-                alert("Error en la venta");
-            }
+            if (res.ok) setTimeout(cargarTodo, 500);
+            else alert("Error en la venta");
         } catch (e) { alert("Error de conexión"); }
+    }
+
+    function imprimirCierre() {
+        const total = document.getElementById('totalRendir').innerText;
+        const tabla = document.getElementById('tablaParaImprimir').outerHTML;
+        const win = window.open('', '', 'height=700,width=900');
+        win.document.write('<html><head><title>Cierre</title><style>table{width:100%;border-collapse:collapse;} td,th{border:1px solid #ddd;padding:8px;}</style></head><body>');
+        win.document.write('<h2>Resumen de Ventas - Gomería Ebenezer</h2>');
+        win.document.write('<p>Fecha: ' + new Date().toLocaleDateString() + '</p>');
+        win.document.write(tabla);
+        win.document.write('<h2>' + total + '</h2>');
+        win.document.write('</body></html>');
+        win.document.close();
+        win.print();
     }
 
     function buscar() {
         const b = document.getElementById('buscador').value.toLowerCase();
         const filas = document.getElementById('tablaVentas').getElementsByTagName('tr');
-        for (let f of filas) { 
-            if (f.innerText.toLowerCase().includes(b)) f.style.display = '';
-            else f.style.display = 'none';
-        }
+        for (let f of filas) { f.style.display = f.innerText.toLowerCase().includes(b) ? '' : 'none'; }
     }
 
     window.onload = cargarTodo;
