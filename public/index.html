@@ -89,7 +89,7 @@
             </div>
         </div>
         <div class="card">
-            <h2 style="text-align: center;">💰 Por Rubro</h2>
+            <h2 style="text-align: center;">💰 Ganancia por Rubro</h2>
             <div style="height: 250px;"><canvas id="graficoGanancia"></canvas></div>
             <button class="btn-descargar" onclick="descargarExcel()">📥 Descargar Excel</button>
         </div>
@@ -119,27 +119,29 @@
     let editandoId = null; let chartInstance = null; let movimientosActuales = [];
 
     async function cargarStock() {
-        const res = await fetch('/productos');
-        const productos = await res.json();
-        const tabla = document.getElementById('tablaCuerpo');
-        tabla.innerHTML = '';
-        productos.forEach(p => {
-            const isServ = p.categoria === 'Servicio';
-            const sClass = (!isServ && p.stock_actual < 3) ? 'low-stock' : '';
-            const pString = JSON.stringify(p).replace(/"/g, '&quot;');
-            tabla.innerHTML += `<tr class="${sClass}">
-                <td><strong>#${p.id_producto}</strong></td>
-                <td>${p.nombre}</td>
-                <td>${p.categoria}</td>
-                <td>$${p.precio_costo}</td>
-                <td>$${p.precio_venta}</td>
-                <td>${isServ ? '∞' : p.stock_actual}</td>
-                <td>
-                    <button class="btn-edit" onclick="prepararEdicion(${pString})">✏️</button>
-                    <button class="btn-delete" onclick="borrarProducto(${p.id_producto})">🗑️</button>
-                </td>
-            </tr>`;
-        });
+        try {
+            const res = await fetch('/productos');
+            const productos = await res.json();
+            const tabla = document.getElementById('tablaCuerpo');
+            tabla.innerHTML = '';
+            productos.forEach(p => {
+                const isServ = p.categoria === 'Servicio';
+                const sClass = (!isServ && p.stock_actual < 3) ? 'low-stock' : '';
+                const pString = JSON.stringify(p).replace(/"/g, '&quot;');
+                tabla.innerHTML += `<tr class="${sClass}">
+                    <td><strong>#${p.id_producto}</strong></td>
+                    <td>${p.nombre}</td>
+                    <td>${p.categoria}</td>
+                    <td>$${p.precio_costo}</td>
+                    <td>$${p.precio_venta}</td>
+                    <td>${isServ ? '∞' : p.stock_actual}</td>
+                    <td>
+                        <button class="btn-edit" onclick="prepararEdicion(${pString})">✏️</button>
+                        <button class="btn-delete" onclick="borrarProducto(${p.id_producto})">🗑️</button>
+                    </td>
+                </tr>`;
+            });
+        } catch (e) { console.error("Error cargando stock:", e); }
     }
 
     async function borrarProducto(id) {
@@ -149,18 +151,17 @@
     }
 
     async function cargarMovimientos(filtro) {
-        // Marcamos el botón activo
         document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('active'));
         if(filtro === 'hoy') document.getElementById('btnHoy').classList.add('active');
         if(filtro === 'semana') document.getElementById('btnSemana').classList.add('active');
         if(filtro === 'mes') document.getElementById('btnMes').classList.add('active');
 
-        // Siempre consultamos la ruta histórica completa para el Admin
         const res = await fetch('/movimientos/todo');
         const movs = await res.json();
         
         const tabla = document.getElementById('tablaMovimientos');
-        let totalV = 0, totalG = 0, cats = {};
+        let totalV = 0, totalG = 0;
+        let cats = { "Productos": 0, "Servicios": 0 };
         tabla.innerHTML = '';
         
         const ahora = new Date();
@@ -168,27 +169,20 @@
 
         movimientosActuales = movs.filter(m => {
             if (m.tipo_movimiento !== 'VENTA') return false;
-            
             const fechaMov = new Date(m.fecha);
             const fechaMovStr = m.fecha.split('T')[0];
 
-            if (filtro === 'hoy') {
-                return fechaMovStr === hoyStr;
-            }
+            if (filtro === 'hoy') return fechaMovStr === hoyStr;
             if (filtro === 'semana') {
                 const haceSieteDias = new Date();
                 haceSieteDias.setDate(ahora.getDate() - 7);
                 return fechaMov >= haceSieteDias;
             }
-            if (filtro === 'mes') {
-                return fechaMov.getMonth() === ahora.getMonth() && fechaMov.getFullYear() === ahora.getFullYear();
-            }
+            if (filtro === 'mes') return fechaMov.getMonth() === ahora.getMonth() && fechaMov.getFullYear() === ahora.getFullYear();
             if (filtro === 'rango') {
                 const desde = document.getElementById('fechaDesde').value;
                 const hasta = document.getElementById('fechaHasta').value;
-                if (desde && fechaMovStr < desde) return false;
-                if (hasta && fechaMovStr > hasta) return false;
-                return true;
+                return (!desde || fechaMovStr >= desde) && (!hasta || fechaMovStr <= hasta);
             }
             return true;
         });
@@ -196,8 +190,10 @@
         movimientosActuales.forEach(m => {
             totalV += parseFloat(m.monto_operacion);
             totalG += parseFloat(m.ganancia_operacion || 0);
-            let c = m.descripcion.includes("Servicio") ? "Servicios" : "Productos";
-            cats[c] = (cats[c] || 0) + parseFloat(m.ganancia_operacion || 0);
+            
+            // Lógica de rubro mejorada: busca "servicio" sin importar mayúsculas
+            let rubro = m.descripcion.toLowerCase().includes("servicio") ? "Servicios" : "Productos";
+            cats[rubro] += parseFloat(m.ganancia_operacion || 0);
             
             const fechaHora = new Date(m.fecha).toLocaleString('es-AR');
             tabla.innerHTML += `<tr><td>${fechaHora}</td><td>${m.descripcion}</td><td>$${parseFloat(m.monto_operacion).toFixed(0)}</td></tr>`;
@@ -213,7 +209,10 @@
         if (chartInstance) chartInstance.destroy();
         chartInstance = new Chart(ctx, {
             type: 'doughnut',
-            data: { labels: Object.keys(datos), datasets: [{ data: Object.values(datos), backgroundColor: ['#1a73e8', '#28a745'] }] },
+            data: { 
+                labels: Object.keys(datos), 
+                datasets: [{ data: Object.values(datos), backgroundColor: ['#1a73e8', '#28a745'] }] 
+            },
             options: { responsive: true, maintainAspectRatio: false }
         });
     }
@@ -235,7 +234,8 @@
         editandoId = null;
         document.getElementById('formProducto').reset();
         document.getElementById('tituloForm').innerText = "📥 Registro / Entrada de Mercadería";
-        cargarStock(); cargarMovimientos('hoy');
+        cargarStock(); 
+        cargarMovimientos('hoy');
     });
 
     function prepararEdicion(p) {
@@ -261,7 +261,7 @@
             const f = new Date(m.fecha).toLocaleString();
             csv += `${f};${m.descripcion};${m.monto_operacion};${m.ganancia_operacion}\n`; 
         });
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = "Reporte_Gomeria.csv";
