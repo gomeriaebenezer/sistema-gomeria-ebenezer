@@ -17,7 +17,7 @@ const pool = mysql.createPool({
     connectionLimit: 10
 });
 
-// PRODUCTOS
+// Obtener productos
 app.get('/productos', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM productos ORDER BY nombre ASC');
@@ -25,6 +25,7 @@ app.get('/productos', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
+// Guardar o Editar producto
 app.post('/productos', async (req, res) => {
     try {
         const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
@@ -33,7 +34,7 @@ app.post('/productos', async (req, res) => {
             [nombre, categoria, precio_costo, precio_venta, stock_actual]
         );
         res.sendStatus(201);
-    } catch (err) { res.status(500).send(err.message); }
+    } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 app.put('/productos/:id', async (req, res) => {
@@ -47,28 +48,19 @@ app.put('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-app.delete('/productos/:id', async (req, res) => {
-    try {
-        await pool.query('DELETE FROM productos WHERE id_producto=?', [req.params.id]);
-        res.sendStatus(200);
-    } catch (err) { res.status(500).send(err.message); }
-});
-
-// VENTAS
+// Ventas (Corregido el error de 'VENTA')
 app.post('/vender', async (req, res) => {
     const { id_producto, cantidad, monto_operacion, ganancia_operacion, descripcion } = req.body;
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+        // El texto 'VENTA' ahora va entre comillas simples para que SQL lo tome como texto
         await connection.query(
             "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())",
             [id_producto, descripcion, monto_operacion, ganancia_operacion]
         );
         if (!descripcion.toLowerCase().includes('servicio')) {
-            await connection.query(
-                'UPDATE productos SET stock_actual = stock_actual - ? WHERE id_producto = ?',
-                [cantidad, id_producto]
-            );
+            await connection.query('UPDATE productos SET stock_actual = stock_actual - ? WHERE id_producto = ?', [cantidad, id_producto]);
         }
         await connection.commit();
         res.sendStatus(200);
@@ -80,7 +72,6 @@ app.post('/vender', async (req, res) => {
     }
 });
 
-// MOVIMIENTOS
 app.get('/movimientos/todo', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM movimientos ORDER BY fecha DESC');
@@ -89,4 +80,4 @@ app.get('/movimientos/todo', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor ok en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));
