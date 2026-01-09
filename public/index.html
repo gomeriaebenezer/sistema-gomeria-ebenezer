@@ -68,9 +68,9 @@
         <div class="card">
             <h2>📊 Reporte de Movimientos</h2>
             <div class="no-print">
-                <button class="btn-filtro active" onclick="cargarMovimientos('hoy')">Hoy</button>
-                <button class="btn-filtro" onclick="cargarMovimientos('semana')">Semana</button>
-                <button class="btn-filtro" onclick="cargarMovimientos('mes')">Mes</button>
+                <button class="btn-filtro active" id="btnHoy" onclick="cargarMovimientos('hoy')">Hoy</button>
+                <button class="btn-filtro" id="btnSemana" onclick="cargarMovimientos('semana')">Semana</button>
+                <button class="btn-filtro" id="btnMes" onclick="cargarMovimientos('mes')">Mes</button>
                 <div class="rango-fechas">
                     <div>Desde: <input type="date" id="fechaDesde"></div>
                     <div>Hasta: <input type="date" id="fechaHasta"></div>
@@ -149,27 +149,60 @@
     }
 
     async function cargarMovimientos(filtro) {
-        let url = `/movimientos/${filtro}`;
-        if (filtro === 'rango') {
-            const desde = document.getElementById('fechaDesde').value;
-            const hasta = document.getElementById('fechaHasta').value;
-            url = `/movimientos/rango?desde=${desde}&hasta=${hasta}`;
-        }
-        const res = await fetch(url);
+        // Marcamos el botón activo
+        document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('active'));
+        if(filtro === 'hoy') document.getElementById('btnHoy').classList.add('active');
+        if(filtro === 'semana') document.getElementById('btnSemana').classList.add('active');
+        if(filtro === 'mes') document.getElementById('btnMes').classList.add('active');
+
+        // Siempre consultamos la ruta histórica completa para el Admin
+        const res = await fetch('/movimientos/todo');
         const movs = await res.json();
-        movimientosActuales = movs;
+        
         const tabla = document.getElementById('tablaMovimientos');
         let totalV = 0, totalG = 0, cats = {};
         tabla.innerHTML = '';
-        movs.forEach(m => {
-            if(m.tipo_movimiento === 'VENTA') {
-                totalV += parseFloat(m.monto_operacion);
-                totalG += parseFloat(m.ganancia_operacion || 0);
-                let c = m.descripcion.includes("Servicio") ? "Servicios" : "Productos";
-                cats[c] = (cats[c] || 0) + parseFloat(m.ganancia_operacion || 0);
-                tabla.innerHTML += `<tr><td>${new Date(m.fecha).toLocaleString('es-AR')}</td><td>${m.descripcion}</td><td>$${parseFloat(m.monto_operacion).toFixed(0)}</td></tr>`;
+        
+        const ahora = new Date();
+        const hoyStr = ahora.toISOString().split('T')[0];
+
+        movimientosActuales = movs.filter(m => {
+            if (m.tipo_movimiento !== 'VENTA') return false;
+            
+            const fechaMov = new Date(m.fecha);
+            const fechaMovStr = m.fecha.split('T')[0];
+
+            if (filtro === 'hoy') {
+                return fechaMovStr === hoyStr;
             }
+            if (filtro === 'semana') {
+                const haceSieteDias = new Date();
+                haceSieteDias.setDate(ahora.getDate() - 7);
+                return fechaMov >= haceSieteDias;
+            }
+            if (filtro === 'mes') {
+                return fechaMov.getMonth() === ahora.getMonth() && fechaMov.getFullYear() === ahora.getFullYear();
+            }
+            if (filtro === 'rango') {
+                const desde = document.getElementById('fechaDesde').value;
+                const hasta = document.getElementById('fechaHasta').value;
+                if (desde && fechaMovStr < desde) return false;
+                if (hasta && fechaMovStr > hasta) return false;
+                return true;
+            }
+            return true;
         });
+
+        movimientosActuales.forEach(m => {
+            totalV += parseFloat(m.monto_operacion);
+            totalG += parseFloat(m.ganancia_operacion || 0);
+            let c = m.descripcion.includes("Servicio") ? "Servicios" : "Productos";
+            cats[c] = (cats[c] || 0) + parseFloat(m.ganancia_operacion || 0);
+            
+            const fechaHora = new Date(m.fecha).toLocaleString('es-AR');
+            tabla.innerHTML += `<tr><td>${fechaHora}</td><td>${m.descripcion}</td><td>$${parseFloat(m.monto_operacion).toFixed(0)}</td></tr>`;
+        });
+
         document.getElementById('totalVentas').innerText = `$${totalV.toFixed(0)}`;
         document.getElementById('totalGanancia').innerText = `$${totalG.toFixed(0)}`;
         actualizarGrafico(cats);
@@ -224,7 +257,10 @@
 
     function descargarExcel() {
         let csv = "Fecha;Descripcion;Monto;Ganancia\n";
-        movimientosActuales.forEach(m => { csv += `${new Date(m.fecha).toLocaleString()};${m.descripcion};${m.monto_operacion};${m.ganancia_operacion}\n`; });
+        movimientosActuales.forEach(m => { 
+            const f = new Date(m.fecha).toLocaleString();
+            csv += `${f};${m.descripcion};${m.monto_operacion};${m.ganancia_operacion}\n`; 
+        });
         const blob = new Blob([csv], { type: 'text/csv' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
