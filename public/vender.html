@@ -5,115 +5,163 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomería - Terminal de Ventas</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; padding: 10px; margin: 0; color: #333; }
-        .container { max-width: 900px; margin: auto; }
-        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .search-box { width: 100%; padding: 15px; font-size: 1.1em; border: 2px solid #28a745; border-radius: 10px; margin-bottom: 15px; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { text-align: center; color: #2c3e50; }
+        .search-box { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #ddd; font-size: 16px; margin-bottom: 20px; box-sizing: border-box; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; }
-        th { background: #f8f9fa; color: #28a745; }
-        .btn-cobrar { background: #28a745; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
-        .total-rendir { font-size: 1.6em; color: #1e7e34; font-weight: bold; margin-top: 10px; text-align: right; }
-        .low-stock { color: #dc3545; background: #fff2f2 !important; }
-        .btn-print { background: #007bff; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { color: #27ae60; }
+        .btn-cobrar { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-cobrar:hover { background: #219150; }
+        .total-caja { text-align: right; font-size: 1.5em; font-weight: bold; color: #27ae60; margin-top: 15px; }
     </style>
 </head>
 <body>
+
 <div class="container">
     <div class="card">
-        <h1 style="text-align: center; color: #28a745;">⚒️ Terminal de Ventas</h1>
-        <input type="text" id="buscador" class="search-box" placeholder="🔎 Buscar producto..." onkeyup="buscar()">
+        <h1>⚒️ Terminal de Ventas</h1>
+        <input type="text" id="buscador" class="search-box" placeholder="🔍 Buscar producto por nombre..." onkeyup="filtrarProductos()">
         <table>
-            <thead><tr><th>Artículo</th><th>Precio</th><th>Stock</th><th>Acción</th></tr></thead>
-            <tbody id="tablaVentas"></tbody>
+            <thead>
+                <tr>
+                    <th>Artículo</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="listaProductos">
+                </tbody>
         </table>
     </div>
+
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>💰 Cierre de Caja (Hoy)</h2>
-            <button class="btn-print" onclick="imprimirCierre()">🖨️ IMPRIMIR CIERRE</button>
-        </div>
-        <table id="tablaParaImprimir">
-            <thead><tr><th>Hora</th><th>Descripción</th><th>Monto</th></tr></thead>
-            <tbody id="tablaCierre"></tbody>
+        <h2>💰 Cierre de Caja (Hoy)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Hora</th>
+                    <th>Descripción</th>
+                    <th>Monto</th>
+                </tr>
+            </thead>
+            <tbody id="listaMovimientos">
+                </tbody>
         </table>
-        <div class="total-rendir" id="totalRendir">Total: $0</div>
+        <div class="total-caja">Total: $<span id="totalDia">0</span></div>
     </div>
 </div>
 
 <script>
-    async function cargarTodo() { 
-        await cargarProductos(); 
-        await cargarCierre(); 
-    }
+    let productosRaw = [];
 
+    // 1. Cargar productos desde el servidor
     async function cargarProductos() {
         try {
             const res = await fetch('/productos');
-            const productos = await res.json();
-            const tabla = document.getElementById('tablaVentas');
-            tabla.innerHTML = '';
-            productos.forEach(p => {
-                const isServ = p.categoria === 'Servicio';
-                const sClass = (!isServ && p.stock_actual < 3) ? 'low-stock' : '';
-                tabla.innerHTML += `<tr class="${sClass}">
+            productosRaw = await res.json();
+            renderizarProductos(productosRaw);
+        } catch (err) {
+            console.error("Error al cargar productos:", err);
+        }
+    }
+
+    function renderizarProductos(lista) {
+        const tabla = document.getElementById('listaProductos');
+        tabla.innerHTML = '';
+        lista.forEach(p => {
+            const stockDisplay = p.categoria === 'Servicio' ? '∞' : p.stock_actual;
+            tabla.innerHTML += `
+                <tr>
                     <td><strong>${p.nombre}</strong><br><small>${p.categoria}</small></td>
-                    <td>$${parseFloat(p.precio_venta || 0).toFixed(0)}</td>
-                    <td>${isServ ? '∞' : p.stock_actual}</td>
-                    <td><button class="btn-cobrar" onclick="vender(${p.id_producto}, '${p.nombre}')">COBRAR</button></td>
-                </tr>`;
-            });
-        } catch (e) { console.error(e); }
+                    <td>$${p.precio_venta}</td>
+                    <td>${stockDisplay}</td>
+                    <td><button class="btn-cobrar" onclick="vender(${p.id_producto}, '${p.nombre}', ${p.precio_venta}, ${p.precio_costo}, '${p.categoria}')">COBRAR</button></td>
+                </tr>
+            `;
+        });
     }
 
-    async function cargarCierre() {
+    // 2. Filtrar productos en tiempo real
+    function filtrarProductos() {
+        const busqueda = document.getElementById('buscador').value.toLowerCase();
+        const filtrados = productosRaw.filter(p => p.nombre.toLowerCase().includes(busqueda));
+        renderizarProductos(filtrados);
+    }
+
+    // 3. Procesar la venta
+    async function vender(id, nombre, venta, costo, cat) {
+        const ganancia = venta - costo;
+        const datoVenta = {
+            id_producto: id,
+            cantidad: 1,
+            monto_operacion: venta,
+            ganancia_operacion: ganancia,
+            descripcion: `Venta: ${nombre} (${cat})`
+        };
+
         try {
-            const res = await fetch('/movimientos/hoy');
-            const movs = await res.json();
-            const tabla = document.getElementById('tablaCierre');
-            let total = 0;
+            const res = await fetch('/vender', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datoVenta)
+            });
+
+            if (res.ok) {
+                alert("✅ Venta registrada");
+                cargarProductos(); // Recarga stock
+                cargarCaja();      // Recarga tabla de abajo
+            } else {
+                alert("❌ Error al registrar venta");
+            }
+        } catch (err) {
+            console.error("Error en la venta:", err);
+        }
+    }
+
+    // 4. Cargar movimientos del día para la caja
+    async function cargarCaja() {
+        try {
+            const res = await fetch('/movimientos/todo');
+            const movimientos = await res.json();
+            
+            const hoy = new Date().toISOString().split('T')[0];
+            const tabla = document.getElementById('listaMovimientos');
+            const totalDia = document.getElementById('totalDia');
+            
             tabla.innerHTML = '';
-            movs.forEach(m => {
-                const monto = parseFloat(m.monto_operacion || 0);
-                total += monto;
-                const d = new Date(m.fecha);
-                const horaStr = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
-                tabla.innerHTML += `<tr><td>${horaStr}</td><td>${m.descripcion}</td><td>$${monto.toFixed(0)}</td></tr>`;
+            let total = 0;
+
+            // Filtrar solo los de hoy
+            const hoyMovs = movimientos.filter(m => m.fecha.startsWith(hoy));
+
+            hoyMovs.forEach(m => {
+                total += parseFloat(m.monto_operacion);
+                const hora = new Date(m.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                tabla.innerHTML += `
+                    <tr>
+                        <td>${hora}</td>
+                        <td>${m.descripcion}</td>
+                        <td>$${m.monto_operacion}</td>
+                    </tr>
+                `;
             });
-            document.getElementById('totalRendir').innerText = `Total a Entregar: $${total.toFixed(0)}`;
-        } catch (e) { console.error(e); }
+
+            totalDia.innerText = total.toFixed(0);
+        } catch (err) {
+            console.error("Error al cargar caja:", err);
+        }
     }
 
-    async function vender(id, nombre) {
-        if (!confirm(`¿Confirmar cobro de: ${nombre}?`)) return;
-        try {
-            const res = await fetch(`/productos/vender/${id}`, { method: 'PUT' });
-            if (res.ok) setTimeout(cargarTodo, 500);
-            else alert("Error en la venta");
-        } catch (e) { alert("Error de conexión"); }
-    }
-
-    function imprimirCierre() {
-        const total = document.getElementById('totalRendir').innerText;
-        const tabla = document.getElementById('tablaParaImprimir').outerHTML;
-        const win = window.open('', '', 'height=700,width=900');
-        win.document.write('<html><head><title>Cierre</title><style>table{width:100%;border-collapse:collapse;} td,th{border:1px solid #ddd;padding:8px;}</style></head><body>');
-        win.document.write('<h2>Resumen de Ventas - Gomería Ebenezer</h2>');
-        win.document.write('<p>Fecha: ' + new Date().toLocaleDateString() + '</p>');
-        win.document.write(tabla);
-        win.document.write('<h2>' + total + '</h2>');
-        win.document.write('</body></html>');
-        win.document.close();
-        win.print();
-    }
-
-    function buscar() {
-        const b = document.getElementById('buscador').value.toLowerCase();
-        const filas = document.getElementById('tablaVentas').getElementsByTagName('tr');
-        for (let f of filas) { f.style.display = f.innerText.toLowerCase().includes(b) ? '' : 'none'; }
-    }
-
-    window.onload = cargarTodo;
+    // Al cargar la página
+    window.onload = () => {
+        cargarProductos();
+        cargarCaja();
+    };
 </script>
+
 </body>
 </html>
