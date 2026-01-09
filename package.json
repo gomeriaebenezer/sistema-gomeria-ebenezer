@@ -1,9 +1,10 @@
 {
   "name": "sistema-gomeria",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Sistema para Gomería",
+  "main": "app.js",
   "scripts": {
+    "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,8 +12,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "mysql2": "^3.16.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "mysql2": "^3.0.0",
+    "path": "^0.12.7"
   }
 }
