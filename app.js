@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION LOGS CORREGIDA"));
+app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION FINAL CON CIERRE DIARIO"));
 
 // OBTENER PRODUCTOS
 app.get('/productos', async (req, res) => {
@@ -15,7 +15,7 @@ app.get('/productos', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// VENDER (Corregido el error de columna 'VENTA')
+// VENDER
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -31,11 +31,8 @@ app.put('/productos/vender/:id', async (req, res) => {
         const ganancia = venta - (parseFloat(p.precio_costo) || 0);
         const descrip = `Venta: ${p.nombre}`;
 
-        // Usamos SET para que la consulta sea más limpia y evitar errores de comillas
         const queryInsert = "INSERT INTO movimientos SET id_producto=?, tipo_movimiento='VENTA', descripcion=?, monto_operacion=?, ganancia_operacion=?, fecha=NOW()";
-        
         await db.query(queryInsert, [id, descrip, venta, ganancia]);
-        
         res.send('OK');
     } catch (err) { 
         console.error("DETALLE ERROR SQL:", err);
@@ -43,15 +40,21 @@ app.put('/productos/vender/:id', async (req, res) => {
     }
 });
 
-// HISTORIAL
+// HISTORIAL PARA EL VENDEDOR (Solo ventas de HOY Argentina)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
-        const [results] = await db.query('SELECT * FROM movimientos ORDER BY id_movimiento DESC LIMIT 50');
+        const sql = "SELECT * FROM movimientos WHERE DATE(SUBTIME(fecha, '03:00:00')) = DATE(SUBTIME(NOW(), '03:00:00')) ORDER BY id_movimiento DESC";
+        const [results] = await db.query(sql);
         res.json(results);
-    } catch (err) { 
-        console.error(err);
-        res.status(500).json([]); 
-    }
+    } catch (err) { res.status(500).json([]); }
+});
+
+// HISTORIAL PARA EL ADMIN (Todo el histórico sin límite diario)
+app.get('/movimientos/todo', async (req, res) => {
+    try {
+        const [results] = await db.query('SELECT * FROM movimientos ORDER BY fecha DESC');
+        res.json(results);
+    } catch (err) { res.status(500).json([]); }
 });
 
 const PORT = process.env.PORT || 3000;
