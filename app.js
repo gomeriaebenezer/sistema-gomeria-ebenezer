@@ -1,83 +1,69 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
-const cors = require('cors');
+const db = require('./db');
+const app = express();
 const path = require('path');
 
-const app = express();
 app.use(express.json());
-app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10
-});
-
-// Obtener productos
+// OBTENER PRODUCTOS
 app.get('/productos', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM productos ORDER BY nombre ASC');
-        res.json(rows);
-    } catch (err) { res.status(500).send(err.message); }
+        const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
+        res.json(results);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Guardar o Editar producto
+// GUARDAR O EDITAR (Arregla el Inventario)
 app.post('/productos', async (req, res) => {
+    const { id_producto, nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
     try {
-        const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
-        await pool.query(
-            'INSERT INTO productos (nombre, categoria, precio_costo, precio_venta, stock_actual) VALUES (?, ?, ?, ?, ?)',
-            [nombre, categoria, precio_costo, precio_venta, stock_actual]
-        );
-        res.sendStatus(201);
-    } catch (err) { res.status(500).json({error: err.message}); }
-});
-
-app.put('/productos/:id', async (req, res) => {
-    try {
-        const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
-        await pool.query(
-            'UPDATE productos SET nombre=?, categoria=?, precio_costo=?, precio_venta=?, stock_actual=? WHERE id_producto=?',
-            [nombre, categoria, precio_costo, precio_venta, stock_actual, req.params.id]
-        );
-        res.sendStatus(200);
+        if (id_producto) {
+            await db.query('UPDATE productos SET nombre=?, categoria=?, precio_costo=?, precio_venta=?, stock_actual=? WHERE id_producto=?', 
+            [nombre, categoria, precio_costo, precio_venta, stock_actual, id_producto]);
+        } else {
+            const [existe] = await db.query('SELECT * FROM productos WHERE nombre = ?', [nombre]);
+            if (existe.length > 0) {
+                await db.query('UPDATE productos SET stock_actual = stock_actual + ? WHERE nombre = ?', [stock_actual, nombre]);
+            } else {
+                await db.query('INSERT INTO productos (nombre, categoria, precio_costo, precio_venta, stock_actual) VALUES (?, ?, ?, ?, ?)', 
+                [nombre, categoria, precio_costo, precio_venta, stock_actual]);
+            }
+        }
+        res.send('OK');
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// Ventas (Corregido el error de 'VENTA')
-app.post('/vender', async (req, res) => {
-    const { id_producto, cantidad, monto_operacion, ganancia_operacion, descripcion } = req.body;
-    const connection = await pool.getConnection();
+// VENDER (Modificado para que el gráfico detecte la categoría)
+app.put('/productos/vender/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-        await connection.beginTransaction();
-        // El texto 'VENTA' ahora va entre comillas simples para que SQL lo tome como texto
-        await connection.query(
-            "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())",
-            [id_producto, descripcion, monto_operacion, ganancia_operacion]
-        );
-        if (!descripcion.toLowerCase().includes('servicio')) {
-            await connection.query('UPDATE productos SET stock_actual = stock_actual - ? WHERE id_producto = ?', [cantidad, id_producto]);
+        const [rows] = await db.query('SELECT * FROM productos WHERE id_producto = ?', [id]);
+        if (rows.length === 0) return res.status(404).send("No encontrado");
+        const p = rows[0];
+
+        if (p.categoria !== 'Servicio') {
+            await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
-        await connection.commit();
-        res.sendStatus(200);
-    } catch (error) {
-        await connection.rollback();
-        res.status(500).send(error.message);
-    } finally {
-        connection.release();
-    }
+
+        const venta = parseFloat(p.precio_venta) || 0;
+        const ganancia = venta - (parseFloat(p.precio_costo) || 0);
+        // Guardamos la categoría entre paréntesis para que el gráfico la reconozca
+        const descrip = `Venta: ${p.nombre} (${p.categoria})`;
+
+        const queryInsert = "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())";
+        await db.query(queryInsert, [id, descrip, venta, ganancia]);
+        res.send('OK');
+    } catch (err) { res.status(500).send(err.message); }
 });
 
+// HISTORIAL
 app.get('/movimientos/todo', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM movimientos ORDER BY fecha DESC');
-        res.json(rows);
-    } catch (err) { res.status(500).send(err.message); }
+        const [results] = await db.query("SELECT * FROM movimientos ORDER BY fecha DESC");
+        res.json(results);
+    } catch (err) { res.status(500).json([]); }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));
+app.listen(PORT, () => console.log("Servidor iniciado"));
