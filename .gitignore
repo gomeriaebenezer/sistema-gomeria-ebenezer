@@ -1,5 +1,0 @@
-node_modules/
-npm-debug.log
-.env
-# Si no querés subir tu base de datos local:
-# nombre_de_tu_db.db
