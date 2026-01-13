@@ -149,18 +149,16 @@
     }
 
     async function cargarMovimientos(filtro) {
-        // Marcamos el botón activo
         document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('active'));
         if(filtro === 'hoy') document.getElementById('btnHoy').classList.add('active');
         if(filtro === 'semana') document.getElementById('btnSemana').classList.add('active');
         if(filtro === 'mes') document.getElementById('btnMes').classList.add('active');
 
-        // Siempre consultamos la ruta histórica completa para el Admin
         const res = await fetch('/movimientos/todo');
         const movs = await res.json();
         
         const tabla = document.getElementById('tablaMovimientos');
-        let totalV = 0, totalG = 0, cats = {};
+        let totalV = 0, totalG = 0, cats = {"Productos": 0, "Servicios": 0};
         tabla.innerHTML = '';
         
         const ahora = new Date();
@@ -168,21 +166,16 @@
 
         movimientosActuales = movs.filter(m => {
             if (m.tipo_movimiento !== 'VENTA') return false;
-            
             const fechaMov = new Date(m.fecha);
             const fechaMovStr = m.fecha.split('T')[0];
 
-            if (filtro === 'hoy') {
-                return fechaMovStr === hoyStr;
-            }
+            if (filtro === 'hoy') return fechaMovStr === hoyStr;
             if (filtro === 'semana') {
                 const haceSieteDias = new Date();
                 haceSieteDias.setDate(ahora.getDate() - 7);
                 return fechaMov >= haceSieteDias;
             }
-            if (filtro === 'mes') {
-                return fechaMov.getMonth() === ahora.getMonth() && fechaMov.getFullYear() === ahora.getFullYear();
-            }
+            if (filtro === 'mes') return fechaMov.getMonth() === ahora.getMonth() && fechaMov.getFullYear() === ahora.getFullYear();
             if (filtro === 'rango') {
                 const desde = document.getElementById('fechaDesde').value;
                 const hasta = document.getElementById('fechaHasta').value;
@@ -196,8 +189,10 @@
         movimientosActuales.forEach(m => {
             totalV += parseFloat(m.monto_operacion);
             totalG += parseFloat(m.ganancia_operacion || 0);
-            let c = m.descripcion.includes("Servicio") ? "Servicios" : "Productos";
-            cats[c] = (cats[c] || 0) + parseFloat(m.ganancia_operacion || 0);
+            
+            // Lógica para separar rubros en el gráfico
+            let c = m.descripcion.includes("(Servicio)") ? "Servicios" : "Productos";
+            cats[c] += parseFloat(m.ganancia_operacion || 0);
             
             const fechaHora = new Date(m.fecha).toLocaleString('es-AR');
             tabla.innerHTML += `<tr><td>${fechaHora}</td><td>${m.descripcion}</td><td>$${parseFloat(m.monto_operacion).toFixed(0)}</td></tr>`;
@@ -213,7 +208,10 @@
         if (chartInstance) chartInstance.destroy();
         chartInstance = new Chart(ctx, {
             type: 'doughnut',
-            data: { labels: Object.keys(datos), datasets: [{ data: Object.values(datos), backgroundColor: ['#1a73e8', '#28a745'] }] },
+            data: { 
+                labels: Object.keys(datos), 
+                datasets: [{ data: Object.values(datos), backgroundColor: ['#1a73e8', '#28a745'] }] 
+            },
             options: { responsive: true, maintainAspectRatio: false }
         });
     }
@@ -230,12 +228,21 @@
         const url = editandoId ? `/productos/${editandoId}` : '/productos';
         const method = editandoId ? 'PUT' : 'POST';
         
-        await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(datos) });
-        
-        editandoId = null;
-        document.getElementById('formProducto').reset();
-        document.getElementById('tituloForm').innerText = "📥 Registro / Entrada de Mercadería";
-        cargarStock(); cargarMovimientos('hoy');
+        const res = await fetch(url, { 
+            method, 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify(datos) 
+        });
+
+        if(res.ok) {
+            editandoId = null;
+            document.getElementById('formProducto').reset();
+            document.getElementById('tituloForm').innerText = "📥 Registro / Entrada de Mercadería";
+            cargarStock(); 
+            cargarMovimientos('hoy');
+        } else {
+            alert("Error al guardar");
+        }
     });
 
     function prepararEdicion(p) {
