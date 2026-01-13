@@ -5,23 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomería - Terminal de Ventas</title>
     <style>
-        /* FONDO Y ESTILO GENERAL */
         body { 
             font-family: 'Segoe UI', sans-serif; 
             background: url('fondo_admin.jpg') no-repeat center center fixed; 
             background-size: cover;
             padding: 10px; margin: 0; color: #333;
         }
-
-        /* Capa oscura para que resalten las tarjetas */
         body::before {
             content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.5); z-index: -1;
         }
-
-        .container { max-width: 900px; margin: auto; }
-
-        /* TARJETAS CON EFECTO DE VIDRIO */
+        /* MARCAS DE AGUA GALEANO SYSGEAR SOLUTIONS */
+        .watermark-corner {
+            position: fixed; bottom: 10px; right: 15px; font-size: 11px;
+            color: rgba(255, 255, 255, 0.3); font-weight: bold; z-index: 10000; pointer-events: none;
+        }
+        .bg-watermark-fixed {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 60px; color: rgba(255, 255, 255, 0.03); font-weight: bold;
+            white-space: nowrap; pointer-events: none; z-index: -1; user-select: none;
+        }
+        .container { max-width: 900px; margin: auto; position: relative; }
         .card { 
             background: rgba(255, 255, 255, 0.9); 
             backdrop-filter: blur(10px); 
@@ -31,10 +35,7 @@
             margin-bottom: 20px; 
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
-
         h1, h2 { color: #28a745; margin-top: 0; }
-
-        /* BUSCADOR */
         .search-box { 
             width: 100%; 
             padding: 15px; 
@@ -45,39 +46,33 @@
             box-sizing: border-box; 
             background: white;
         }
-
-        /* TABLAS */
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
         th, td { padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; }
         th { background: #f8f9fa; color: #28a745; }
-
-        /* BOTONES */
         .btn-cobrar { 
             background: #28a745; color: white; border: none; padding: 12px; 
             border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; 
             transition: 0.3s;
         }
         .btn-cobrar:hover { background: #218838; transform: scale(1.02); }
-
         .btn-print { 
             background: #007bff; color: white; border: none; padding: 10px; 
             border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; 
         }
-
         .total-rendir { 
             font-size: 1.6em; color: #1e7e34; font-weight: bold; 
             margin-top: 10px; text-align: right; border-top: 2px solid #eee; padding-top: 10px;
         }
-
         .low-stock { color: #dc3545; background: #fff2f2 !important; font-weight: bold; }
-
-        /* Responsivo para celulares */
         @media (max-width: 600px) {
-            th:nth-child(3), td:nth-child(3) { display: none; } /* Oculta stock en celus chicos */
+            th:nth-child(3), td:nth-child(3) { display: none; }
         }
     </style>
 </head>
 <body>
+    <div class="watermark-corner">Galeano SysGear Solutions</div>
+    <div class="bg-watermark-fixed">GALEANO SYSGEAR SOLUTIONS</div>
+
 <div class="container">
     <div class="card">
         <h1 style="text-align: center;">⚒️ Terminal de Ventas</h1>
@@ -149,7 +144,6 @@
         try {
             const res = await fetch(`/productos/vender/${id}`, { method: 'PUT' });
             if (res.ok) {
-                // Pequeña pausa para que la DB se actualice antes de recargar
                 setTimeout(cargarTodo, 300);
             } else {
                 alert("Error en la venta");
@@ -167,6 +161,9 @@
         win.document.write('<h3>Fecha: ' + new Date().toLocaleDateString() + '</h3>');
         win.document.write(tablaContenido);
         win.document.write('<h2 style="text-align:right; margin-top:20px;">' + total + '</h2>');
+        // FIRMA DE GALEANO SYSGEAR EN LA IMPRESION
+        win.document.write('<hr style="margin-top:50px; border:0; border-top:1px solid #ccc;">');
+        win.document.write('<p style="text-align:center; font-size:12px; color:#666;">Sistema de gestión provisto por <strong>Galeano SysGear Solutions</strong></p>');
         win.document.write('</body></html>');
         win.document.close();
         win.print();
