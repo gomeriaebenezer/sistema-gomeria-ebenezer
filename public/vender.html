@@ -57,18 +57,27 @@
         }
         .low-stock { color: #dc3545; background: #fff2f2 !important; font-weight: bold; }
         
-        /* ESTILOS MODAL INSUMOS */
+        /* ESTILOS MODAL MEJORADOS CON SCROLL Y BUSCADOR */
         .modal {
             display: none; position: fixed; z-index: 20000; left: 0; top: 0;
             width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);
         }
         .modal-content {
-            background-color: white; margin: 5% auto; padding: 20px;
-            border-radius: 15px; width: 90%; max-width: 500px; text-align: center;
+            background-color: white; margin: 2% auto; padding: 20px;
+            border-radius: 15px; width: 90%; max-width: 500px; 
+            text-align: center; max-height: 90vh; display: flex; flex-direction: column;
+        }
+        .search-mini {
+            width: 100%; padding: 10px; margin: 10px 0;
+            border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box;
+        }
+        #listaInsumos {
+            overflow-y: auto; margin: 10px 0; padding: 5px;
+            border-top: 1px solid #eee; flex-grow: 1;
         }
         .opcion-insumo {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 15px; border-bottom: 1px solid #eee; font-size: 1.1em;
+            padding: 12px; border-bottom: 1px solid #eee; font-size: 1.1em;
         }
         .btn-cantidad {
             background: #28a745; color: white; border: none; padding: 8px 15px;
@@ -76,6 +85,7 @@
         }
         @media (max-width: 600px) {
             th:nth-child(3), td:nth-child(3) { display: none; }
+            .modal-content { margin: 5% auto; width: 95%; }
         }
     </style>
 </head>
@@ -108,12 +118,17 @@
 
 <div id="modalInsumos" class="modal">
     <div class="modal-content">
-        <h2 id="modalTitulo">¿Qué insumos usaste?</h2>
-        <p><small>Seleccioná si agregaste parches o tarugos extra</small></p>
+        <h2 id="modalTitulo" style="margin-bottom:5px;">¿Qué insumos usaste?</h2>
+        <p style="margin:0;"><small>Seleccioná si agregaste parches o extras</small></p>
+        
+        <input type="text" id="filtroInsumos" class="search-mini" placeholder="🔎 Filtrar parches, cámaras..." onkeyup="filtrarInsumos()">
+        
         <div id="listaInsumos"></div>
-        <hr>
-        <button class="btn-cobrar" onclick="finalizarVentaCompleta()">CONFIRMAR VENTA TOTAL</button>
-        <button style="margin-top:10px; background:#6c757d" class="btn-cobrar" onclick="cerrarModal()">CANCELAR</button>
+        
+        <div style="margin-top: 10px;">
+            <button class="btn-cobrar" onclick="finalizarVentaCompleta()">CONFIRMAR VENTA TOTAL</button>
+            <button style="margin-top:10px; background:#6c757d" class="btn-cobrar" onclick="cerrarModal()">CANCELAR</button>
+        </div>
     </div>
 </div>
 
@@ -157,21 +172,32 @@
     }
 
     function abrirModal() {
+        document.getElementById('filtroInsumos').value = ''; // Reset buscador
         const lista = document.getElementById('listaInsumos');
         lista.innerHTML = '';
-        // Mostramos solo productos que NO son servicios para elegir como extra
+        
+        // Filtramos solo productos que NO son servicios
         todosLosProductos.filter(p => p.categoria !== 'Servicio').forEach(ins => {
             lista.innerHTML += `
-                <div class="opcion-insumo">
-                    <span>${ins.nombre} (+$${parseFloat(ins.precio_venta).toFixed(0)})</span>
-                    <div>
+                <div class="opcion-insumo" data-nombre="${ins.nombre.toLowerCase()}">
+                    <span style="text-align:left;">${ins.nombre}<br><small>+$${parseFloat(ins.precio_venta).toFixed(0)}</small></span>
+                    <div style="display:flex; align-items:center;">
                         <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCantidadInsumo(${ins.id_producto}, -1)">-</button>
-                        <span id="cant-${ins.id_producto}" style="margin: 0 10px; font-weight:bold;">0</span>
+                        <span id="cant-${ins.id_producto}" style="margin: 0 10px; font-weight:bold; min-width:20px;">0</span>
                         <button class="btn-cantidad" onclick="cambiarCantidadInsumo(${ins.id_producto}, 1)">+</button>
                     </div>
                 </div>`;
         });
         document.getElementById('modalInsumos').style.display = 'block';
+    }
+
+    function filtrarInsumos() {
+        const busqueda = document.getElementById('filtroInsumos').value.toLowerCase();
+        const items = document.querySelectorAll('.opcion-insumo');
+        items.forEach(item => {
+            const nombre = item.getAttribute('data-nombre');
+            item.style.display = nombre.includes(busqueda) ? 'flex' : 'none';
+        });
     }
 
     function cambiarCantidadInsumo(id, cambio) {
@@ -185,10 +211,7 @@
     }
 
     async function finalizarVentaCompleta() {
-        // 1. Vender el Servicio Base
         await ejecutarVenta(ventaServicioActual.id_producto);
-        
-        // 2. Vender los insumos seleccionados
         for (let item of insumosParaSumar) {
             for (let k = 0; k < item.cantidad; k++) {
                 await ejecutarVenta(item.id);
@@ -237,7 +260,6 @@
         win.document.write(document.querySelector(".card:last-child table").outerHTML);
         win.document.write('<h2>' + document.getElementById('totalRendir').innerText + '</h2>');
         win.document.write('<p style="text-align:center;">Provisto por Galeano SysGear Solutions</p>');
-        win.document.write('</body></html>');
         win.document.close();
         win.print();
     }
