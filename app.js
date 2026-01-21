@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION FINAL CON INSUMOS"));
+app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION FINAL CON REPORTES"));
 
 // OBTENER PRODUCTOS
 app.get('/productos', async (req, res) => {
@@ -49,7 +49,7 @@ app.delete('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// VENDER (Modificado para registrar nombre exacto)
+// VENDER
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -57,15 +57,12 @@ app.put('/productos/vender/:id', async (req, res) => {
         if (rows.length === 0) return res.status(404).send("No encontrado");
         const p = rows[0];
 
-        // Solo resta stock si NO es un servicio
         if (p.categoria !== 'Servicio') {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
         const venta = parseFloat(p.precio_venta) || 0;
         const ganancia = venta - (parseFloat(p.precio_costo) || 0);
-        
-        // Registro detallado para el cierre
         const descrip = `Venta: ${p.nombre} (${p.categoria})`;
 
         const queryInsert = "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())";
@@ -77,9 +74,51 @@ app.put('/productos/vender/:id', async (req, res) => {
     }
 });
 
+// --- SECCIÓN DE MOVIMIENTOS Y REPORTES (CORREGIDO PARA ADMIN) ---
+
+// 1. RUTA PRINCIPAL DE MOVIMIENTOS (Acepta filtros ?desde=...&hasta=...)
+app.get('/movimientos', async (req, res) => {
+    const { desde, hasta } = req.query;
+    try {
+        let sql = "SELECT * FROM movimientos";
+        let params = [];
+
+        if (desde && hasta) {
+            // Filtra por fecha ignorando la hora
+            sql += " WHERE DATE(fecha) BETWEEN ? AND ?";
+            params = [desde, hasta];
+        }
+        
+        sql += " ORDER BY id_movimiento DESC";
+        const [results] = await db.query(sql, params);
+        res.json(results);
+    } catch (err) { 
+        console.error("Error obteniendo movimientos:", err);
+        res.status(500).json([]); 
+    }
+});
+
+// 2. MOVIMIENTOS DE HOY (Para la terminal de ventas rápida)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
         const sql = "SELECT * FROM movimientos WHERE DATE(SUBTIME(fecha, '03:00:00')) = DATE(SUBTIME(NOW(), '03:00:00')) ORDER BY id_movimiento DESC";
+        const [results] = await db.query(sql);
+        res.json(results);
+    } catch (err) { res.status(500).json([]); }
+});
+
+// 3. DATOS PARA EL GRÁFICO DE RUBROS (Para el panel Admin)
+app.get('/movimientos/rubros', async (req, res) => {
+    try {
+        // Esta consulta extrae la categoría que guardamos entre paréntesis en la descripción
+        const sql = `
+            SELECT 
+                SUBSTRING_INDEX(SUBSTRING_INDEX(descripcion, '(', -1), ')', 1) as rubro,
+                SUM(monto_operacion) as total
+            FROM movimientos 
+            WHERE tipo_movimiento = 'VENTA'
+            GROUP BY rubro
+        `;
         const [results] = await db.query(sql);
         res.json(results);
     } catch (err) { res.status(500).json([]); }
