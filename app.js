@@ -76,15 +76,14 @@ app.put('/productos/vender/:id', async (req, res) => {
 
 // --- SECCIÓN DE MOVIMIENTOS Y REPORTES (CORREGIDO PARA ADMIN) ---
 
-// 1. RUTA PRINCIPAL DE MOVIMIENTOS (Acepta filtros ?desde=...&hasta=...)
-app.get('/movimientos', async (req, res) => {
+// 1. RUTA PRINCIPAL DE MOVIMIENTOS (Renombrada a /todo para coincidir con tu panel)
+app.get('/movimientos/todo', async (req, res) => {
     const { desde, hasta } = req.query;
     try {
         let sql = "SELECT * FROM movimientos";
         let params = [];
 
         if (desde && hasta) {
-            // Filtra por fecha ignorando la hora
             sql += " WHERE DATE(fecha) BETWEEN ? AND ?";
             params = [desde, hasta];
         }
@@ -93,7 +92,7 @@ app.get('/movimientos', async (req, res) => {
         const [results] = await db.query(sql, params);
         res.json(results);
     } catch (err) { 
-        console.error("Error obteniendo movimientos:", err);
+        console.error("Error en movimientos/todo:", err);
         res.status(500).json([]); 
     }
 });
@@ -110,7 +109,6 @@ app.get('/movimientos/hoy', async (req, res) => {
 // 3. DATOS PARA EL GRÁFICO DE RUBROS (Para el panel Admin)
 app.get('/movimientos/rubros', async (req, res) => {
     try {
-        // Esta consulta extrae la categoría que guardamos entre paréntesis en la descripción
         const sql = `
             SELECT 
                 SUBSTRING_INDEX(SUBSTRING_INDEX(descripcion, '(', -1), ')', 1) as rubro,
