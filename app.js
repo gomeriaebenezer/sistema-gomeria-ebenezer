@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-app.get('/test', (req, res) => res.send("SERVIDOR FUNCIONANDO - VERSION FINAL CON REPORTES"));
+app.get('/test', (req, res) => res.send("Galeano SysGear - Soporte Precio Adicional v1.0"));
 
 // OBTENER PRODUCTOS
 app.get('/productos', async (req, res) => {
@@ -15,28 +15,28 @@ app.get('/productos', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// CREAR PRODUCTO
+// CREAR PRODUCTO (Agregado precio_adicional)
 app.post('/productos', async (req, res) => {
-    const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
+    const { nombre, categoria, precio_costo, precio_venta, precio_adicional, stock_actual } = req.body;
     try {
         const [existe] = await db.query('SELECT * FROM productos WHERE nombre = ?', [nombre]);
         if (existe.length > 0) {
             await db.query('UPDATE productos SET stock_actual = stock_actual + ? WHERE nombre = ?', [stock_actual, nombre]);
         } else {
-            const sql = "INSERT INTO productos (nombre, categoria, precio_costo, precio_venta, stock_actual) VALUES (?, ?, ?, ?, ?)";
-            await db.query(sql, [nombre, categoria, precio_costo, precio_venta, stock_actual]);
+            const sql = "INSERT INTO productos (nombre, categoria, precio_costo, precio_venta, precio_adicional, stock_actual) VALUES (?, ?, ?, ?, ?, ?)";
+            await db.query(sql, [nombre, categoria, precio_costo, precio_venta, precio_adicional || 0, stock_actual]);
         }
         res.send('OK');
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// EDITAR PRODUCTO
+// EDITAR PRODUCTO (Agregado precio_adicional)
 app.put('/productos/:id', async (req, res) => {
     const { id } = req.params;
-    const { nombre, categoria, precio_costo, precio_venta, stock_actual } = req.body;
+    const { nombre, categoria, precio_costo, precio_venta, precio_adicional, stock_actual } = req.body;
     try {
-        const sql = "UPDATE productos SET nombre=?, categoria=?, precio_costo=?, precio_venta=?, stock_actual=? WHERE id_producto=?";
-        await db.query(sql, [nombre, categoria, precio_costo, precio_venta, stock_actual, id]);
+        const sql = "UPDATE productos SET nombre=?, categoria=?, precio_costo=?, precio_venta=?, precio_adicional=?, stock_actual=? WHERE id_producto=?";
+        await db.query(sql, [nombre, categoria, precio_costo, precio_venta, precio_adicional || 0, stock_actual, id]);
         res.send('OK');
     } catch (err) { res.status(500).send(err.message); }
 });
@@ -49,9 +49,10 @@ app.delete('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// VENDER
+// VENDER (Lógica inteligente para Precio Normal o Adicional)
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
+    const { esAdicional } = req.body; // Recibimos si es precio extra desde el front
     try {
         const [rows] = await db.query('SELECT * FROM productos WHERE id_producto = ?', [id]);
         if (rows.length === 0) return res.status(404).send("No encontrado");
@@ -61,9 +62,17 @@ app.put('/productos/vender/:id', async (req, res) => {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        const venta = parseFloat(p.precio_venta) || 0;
+        // Si el front dice que es adicional, usamos ese precio. Si no, el de venta normal.
+        let precioFinal = (esAdicional) ? parseFloat(p.precio_adicional) : parseFloat(p.precio_venta);
+        
+        // Si el precio adicional está en 0 por error, que use el de venta para no perder plata
+        if (esAdicional && (!p.precio_adicional || p.precio_adicional == 0)) {
+            precioFinal = parseFloat(p.precio_venta);
+        }
+
+        const venta = precioFinal || 0;
         const ganancia = venta - (parseFloat(p.precio_costo) || 0);
-        const descrip = `Venta: ${p.nombre} (${p.categoria})`;
+        const descrip = `Venta: ${p.nombre}${esAdicional ? ' (ADICIONAL)' : ''} (${p.categoria})`;
 
         const queryInsert = "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())";
         await db.query(queryInsert, [id, descrip, venta, ganancia]);
@@ -74,30 +83,22 @@ app.put('/productos/vender/:id', async (req, res) => {
     }
 });
 
-// --- SECCIÓN DE MOVIMIENTOS Y REPORTES (CORREGIDO PARA ADMIN) ---
-
-// 1. RUTA PRINCIPAL DE MOVIMIENTOS (Renombrada a /todo para coincidir con tu panel)
+// --- MOVIMIENTOS Y REPORTES ---
 app.get('/movimientos/todo', async (req, res) => {
     const { desde, hasta } = req.query;
     try {
         let sql = "SELECT * FROM movimientos";
         let params = [];
-
         if (desde && hasta) {
             sql += " WHERE DATE(fecha) BETWEEN ? AND ?";
             params = [desde, hasta];
         }
-        
         sql += " ORDER BY id_movimiento DESC";
         const [results] = await db.query(sql, params);
         res.json(results);
-    } catch (err) { 
-        console.error("Error en movimientos/todo:", err);
-        res.status(500).json([]); 
-    }
+    } catch (err) { res.status(500).json([]); }
 });
 
-// 2. MOVIMIENTOS DE HOY (Para la terminal de ventas rápida)
 app.get('/movimientos/hoy', async (req, res) => {
     try {
         const sql = "SELECT * FROM movimientos WHERE DATE(SUBTIME(fecha, '03:00:00')) = DATE(SUBTIME(NOW(), '03:00:00')) ORDER BY id_movimiento DESC";
@@ -106,7 +107,6 @@ app.get('/movimientos/hoy', async (req, res) => {
     } catch (err) { res.status(500).json([]); }
 });
 
-// 3. DATOS PARA EL GRÁFICO DE RUBROS (Para el panel Admin)
 app.get('/movimientos/rubros', async (req, res) => {
     try {
         const sql = `
