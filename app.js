@@ -6,7 +6,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ==========================================
-// 🛠️ BLOQUE DE AUTO-PARCHE (Arregla la DB al iniciar)
+// 🛠️ FUNCIÓN DE AUTO-PARCHE (Arregla la DB al iniciar)
 // ==========================================
 async function actualizarBaseDeDatos() {
     try {
@@ -15,6 +15,7 @@ async function actualizarBaseDeDatos() {
         await db.query("ALTER TABLE productos ADD COLUMN precio_adicional DECIMAL(10,2) DEFAULT 0");
         console.log("✅ ¡Éxito! Columna 'precio_adicional' creada.");
     } catch (err) {
+        // Códigos de error para "columna ya existe" en MySQL
         if (err.code === 'ER_DUP_COLUMN_NAME' || err.errno === 1060) {
             console.log("ℹ️ Base de datos al día: la columna ya existe.");
         } else {
@@ -24,11 +25,12 @@ async function actualizarBaseDeDatos() {
 }
 // Ejecutamos la función apenas arranca el servidor
 actualizarBaseDeDatos();
+
+// ==========================================
+// 🛣️ RUTAS
 // ==========================================
 
 app.get('/test', (req, res) => res.send("Galeano SysGear - Sistema Gomería v2.0 - Activo"));
-
-// --- PRODUCTOS ---
 
 app.get('/productos', async (req, res) => {
     try {
@@ -68,8 +70,6 @@ app.delete('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// --- VENTA CON LÓGICA DE PRECIO ADICIONAL ---
-
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
     const { esAdicional } = req.body; 
@@ -97,8 +97,6 @@ app.put('/productos/vender/:id', async (req, res) => {
         res.status(500).send("Error en el servidor"); 
     }
 });
-
-// --- REPORTES Y MOVIMIENTOS ---
 
 app.get('/movimientos/todo', async (req, res) => {
     const { desde, hasta } = req.query;
@@ -140,7 +138,3 @@ app.get('/movimientos/rubros', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Servidor Galeano SysGear en puerto ${PORT}`));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor Galeano SysGear en puerto ${PORT}`));
-
