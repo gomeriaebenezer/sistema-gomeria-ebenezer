@@ -73,6 +73,10 @@
             background: #28a745; color: white; border: none; width: 35px; height: 35px;
             border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.2em;
         }
+        .visor-total-modal {
+            background: #e9ecef; padding: 15px; border-radius: 10px; margin: 10px 0;
+            font-size: 1.4em; font-weight: bold; color: #495057; border: 2px dashed #adb5bd;
+        }
     </style>
 </head>
 <body>
@@ -90,8 +94,8 @@
 
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>💰 Cierre de Caja</h2>
-            <button class="btn-print" onclick="imprimirCierre()">🖨️ IMPRIMIR</button>
+            <h2>💰 Cierre de Caja (Hoy)</h2>
+            <button class="btn-print" onclick="imprimirCierre()">🖨️ IMPRIMIR CIERRE</button>
         </div>
         <table>
             <thead><tr><th>Hora</th><th>Descripción</th><th>Monto</th></tr></thead>
@@ -104,6 +108,7 @@
 <div id="modalInsumos" class="modal">
     <div class="modal-content">
         <h2 id="tituloModal">¿Qué insumos usaste?</h2>
+        <div class="visor-total-modal">Total Venta: <span id="totalVentaModal">$0</span></div>
         <input type="text" id="filtroInsumos" style="width:100%; padding:10px; margin-bottom:10px;" placeholder="🔎 Filtrar productos..." onkeyup="filtrarInsumos()">
         <div id="listaInsumos"></div>
         <button class="btn-cobrar" onclick="finalizarVentaCompleta()">CONFIRMAR VENTA TOTAL</button>
@@ -113,7 +118,7 @@
 
 <script>
     let ventaServicioActual = null;
-    let insumosSeleccionados = {}; // Formato: { id_producto: { normal: X, extra: Y } }
+    let insumosSeleccionados = {}; 
     let todosLosProductos = [];
 
     async function cargarTodo() { 
@@ -152,61 +157,61 @@
         const lista = document.getElementById('listaInsumos');
         lista.innerHTML = '';
         
-        // Filtramos para mostrar solo productos que no sean el servicio base
         todosLosProductos.filter(p => p.categoria !== 'Servicio').forEach(ins => {
             lista.innerHTML += `
                 <div class="opcion-insumo" data-nombre="${ins.nombre.toLowerCase()}">
                     <div style="text-align:left; border-bottom:1px solid #eee; margin-bottom:5px;"><strong>${ins.nombre}</strong></div>
                     
                     <div class="precio-row">
-                        <span class="badge-normal">Precio Normal ($${ins.precio_venta})</span>
+                        <span class="badge-normal">Normal ($${ins.precio_venta})</span>
                         <div>
-                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'normal', -1)">-</button>
+                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'normal', -1, ${ins.precio_venta}, ${ins.precio_adicional || 0})">-</button>
                             <span id="cant-normal-${ins.id_producto}" style="margin: 0 10px; font-weight:bold; min-width:20px; display:inline-block;">0</span>
-                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'normal', 1)">+</button>
+                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'normal', 1, ${ins.precio_venta}, ${ins.precio_adicional || 0})">+</button>
                         </div>
                     </div>
 
                     <div class="precio-row">
-                        <span class="badge-extra">Precio Extra ($${ins.precio_adicional || 0})</span>
+                        <span class="badge-extra">Extra ($${ins.precio_adicional || 0})</span>
                         <div>
-                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'extra', -1)">-</button>
+                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'extra', -1, ${ins.precio_venta}, ${ins.precio_adicional || 0})">-</button>
                             <span id="cant-extra-${ins.id_producto}" style="margin: 0 10px; font-weight:bold; min-width:20px; display:inline-block;">0</span>
-                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'extra', 1)">+</button>
+                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'extra', 1, ${ins.precio_venta}, ${ins.precio_adicional || 0})">+</button>
                         </div>
                     </div>
                 </div>`;
         });
+        actualizarVisorTotal();
         document.getElementById('modalInsumos').style.display = 'block';
     }
 
-    function cambiarCant(id, tipo, cambio) {
-        if (!insumosSeleccionados[id]) insumosSeleccionados[id] = { normal: 0, extra: 0 };
+    function cambiarCant(id, tipo, cambio, pNormal, pExtra) {
+        if (!insumosSeleccionados[id]) insumosSeleccionados[id] = { normal: 0, extra: 0, pNormal, pExtra };
         
         insumosSeleccionados[id][tipo] += cambio;
         if (insumosSeleccionados[id][tipo] < 0) insumosSeleccionados[id][tipo] = 0;
         
         document.getElementById(`cant-${tipo}-${id}`).innerText = insumosSeleccionados[id][tipo];
+        actualizarVisorTotal();
+    }
+
+    function actualizarVisorTotal() {
+        let total = parseFloat(ventaServicioActual.precio_venta);
+        for (const id in insumosSeleccionados) {
+            const item = insumosSeleccionados[id];
+            total += (item.normal * item.pNormal);
+            total += (item.extra * item.pExtra);
+        }
+        document.getElementById('totalVentaModal').innerText = `$${total.toFixed(0)}`;
     }
 
     async function finalizarVentaCompleta() {
-        // 1. Cobrar el servicio base
         await ejecutarVenta(ventaServicioActual.id_producto, false);
-
-        // 2. Cobrar cada insumo seleccionado
         for (const id in insumosSeleccionados) {
             const item = insumosSeleccionados[id];
-            
-            // Ventas a precio Normal
-            for (let i = 0; i < item.normal; i++) {
-                await ejecutarVenta(id, false);
-            }
-            // Ventas a precio Extra
-            for (let i = 0; i < item.extra; i++) {
-                await ejecutarVenta(id, true);
-            }
+            for (let i = 0; i < item.normal; i++) await ejecutarVenta(id, false);
+            for (let i = 0; i < item.extra; i++) await ejecutarVenta(id, true);
         }
-
         cerrarModal();
         cargarTodo();
         alert("Venta registrada con éxito.");
@@ -242,6 +247,22 @@
             tabla.innerHTML += `<tr><td>${horaStr}</td><td>${m.descripcion}</td><td>$${monto.toFixed(0)}</td></tr>`;
         });
         document.getElementById('totalRendir').innerText = `Total: $${total.toFixed(0)}`;
+    }
+
+    function imprimirCierre() {
+        const total = document.getElementById('totalRendir').innerText;
+        const contenido = document.getElementById('tablaCierre').innerHTML;
+        const ventana = window.open('', '', 'height=600,width=400');
+        ventana.document.write('<html><head><title>Cierre de Caja</title>');
+        ventana.document.write('<style>body{font-family:monospace;padding:20px} table{width:100%;border-collapse:collapse} td{padding:5px;border-bottom:1px solid #ccc}</style>');
+        ventana.document.write('</head><body>');
+        ventana.document.write('<h2>GOMERÍA - CIERRE DE CAJA</h2>');
+        ventana.document.write('<p>Fecha: ' + new Date().toLocaleDateString() + '</p>');
+        ventana.document.write('<table>' + contenido + '</table>');
+        ventana.document.write('<h3>' + total + '</h3>');
+        ventana.document.write('<script>window.print();window.close();<\/script>');
+        ventana.document.write('</body></html>');
+        ventana.document.close();
     }
 
     function buscar() {
