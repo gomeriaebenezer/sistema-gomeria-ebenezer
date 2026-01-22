@@ -5,6 +5,27 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+// ==========================================
+// 🛠️ BLOQUE DE AUTO-PARCHE (Arregla la DB al iniciar)
+// ==========================================
+async function actualizarBaseDeDatos() {
+    try {
+        console.log("🛠️ Verificando base de datos en Aiven...");
+        // Intentamos agregar la columna. Si ya existe, el error será capturado.
+        await db.query("ALTER TABLE productos ADD COLUMN precio_adicional DECIMAL(10,2) DEFAULT 0");
+        console.log("✅ ¡Éxito! Columna 'precio_adicional' creada.");
+    } catch (err) {
+        if (err.code === 'ER_DUP_COLUMN_NAME' || err.errno === 1060) {
+            console.log("ℹ️ Base de datos al día: la columna ya existe.");
+        } else {
+            console.error("❌ Error al verificar DB:", err.message);
+        }
+    }
+}
+// Ejecutamos la función apenas arranca el servidor
+actualizarBaseDeDatos();
+// ==========================================
+
 app.get('/test', (req, res) => res.send("Galeano SysGear - Sistema Gomería v2.0 - Activo"));
 
 // --- PRODUCTOS ---
@@ -51,7 +72,7 @@ app.delete('/productos/:id', async (req, res) => {
 
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
-    const { esAdicional } = req.body; // Recibimos esto desde el vender.html
+    const { esAdicional } = req.body; 
     try {
         const [rows] = await db.query('SELECT * FROM productos WHERE id_producto = ?', [id]);
         if (rows.length === 0) return res.status(404).send("No encontrado");
@@ -61,7 +82,6 @@ app.put('/productos/vender/:id', async (req, res) => {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        // Si es adicional, usamos el precio_adicional. Si es 0 o no tiene, usamos el normal.
         let precioCobrado = (esAdicional && parseFloat(p.precio_adicional) > 0) 
             ? parseFloat(p.precio_adicional) 
             : parseFloat(p.precio_venta);
@@ -120,3 +140,7 @@ app.get('/movimientos/rubros', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Servidor Galeano SysGear en puerto ${PORT}`));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Servidor Galeano SysGear en puerto ${PORT}`));
+
