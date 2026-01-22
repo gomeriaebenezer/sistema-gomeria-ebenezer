@@ -5,9 +5,10 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-app.get('/test', (req, res) => res.send("Galeano SysGear - Soporte Precio Adicional v1.0"));
+app.get('/test', (req, res) => res.send("Galeano SysGear - Sistema Gomería v2.0 - Activo"));
 
-// OBTENER PRODUCTOS
+// --- PRODUCTOS ---
+
 app.get('/productos', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM productos ORDER BY nombre ASC');
@@ -15,7 +16,6 @@ app.get('/productos', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// CREAR PRODUCTO (Agregado precio_adicional)
 app.post('/productos', async (req, res) => {
     const { nombre, categoria, precio_costo, precio_venta, precio_adicional, stock_actual } = req.body;
     try {
@@ -30,7 +30,6 @@ app.post('/productos', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// EDITAR PRODUCTO (Agregado precio_adicional)
 app.put('/productos/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, categoria, precio_costo, precio_venta, precio_adicional, stock_actual } = req.body;
@@ -41,7 +40,6 @@ app.put('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// ELIMINAR PRODUCTO
 app.delete('/productos/:id', async (req, res) => {
     try {
         await db.query('DELETE FROM productos WHERE id_producto = ?', [req.params.id]);
@@ -49,10 +47,11 @@ app.delete('/productos/:id', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// VENDER (Lógica inteligente para Precio Normal o Adicional)
+// --- VENTA CON LÓGICA DE PRECIO ADICIONAL ---
+
 app.put('/productos/vender/:id', async (req, res) => {
     const { id } = req.params;
-    const { esAdicional } = req.body; // Recibimos si es precio extra desde el front
+    const { esAdicional } = req.body; // Recibimos esto desde el vender.html
     try {
         const [rows] = await db.query('SELECT * FROM productos WHERE id_producto = ?', [id]);
         if (rows.length === 0) return res.status(404).send("No encontrado");
@@ -62,28 +61,25 @@ app.put('/productos/vender/:id', async (req, res) => {
             await db.query('UPDATE productos SET stock_actual = stock_actual - 1 WHERE id_producto = ?', [id]);
         }
 
-        // Si el front dice que es adicional, usamos ese precio. Si no, el de venta normal.
-        let precioFinal = (esAdicional) ? parseFloat(p.precio_adicional) : parseFloat(p.precio_venta);
+        // Si es adicional, usamos el precio_adicional. Si es 0 o no tiene, usamos el normal.
+        let precioCobrado = (esAdicional && parseFloat(p.precio_adicional) > 0) 
+            ? parseFloat(p.precio_adicional) 
+            : parseFloat(p.precio_venta);
         
-        // Si el precio adicional está en 0 por error, que use el de venta para no perder plata
-        if (esAdicional && (!p.precio_adicional || p.precio_adicional == 0)) {
-            precioFinal = parseFloat(p.precio_venta);
-        }
-
-        const venta = precioFinal || 0;
-        const ganancia = venta - (parseFloat(p.precio_costo) || 0);
+        const ganancia = precioCobrado - (parseFloat(p.precio_costo) || 0);
         const descrip = `Venta: ${p.nombre}${esAdicional ? ' (ADICIONAL)' : ''} (${p.categoria})`;
 
         const queryInsert = "INSERT INTO movimientos (id_producto, tipo_movimiento, descripcion, monto_operacion, ganancia_operacion, fecha) VALUES (?, 'VENTA', ?, ?, ?, NOW())";
-        await db.query(queryInsert, [id, descrip, venta, ganancia]);
+        await db.query(queryInsert, [id, descrip, precioCobrado, ganancia]);
         res.send('OK');
     } catch (err) { 
-        console.error("ERROR SQL:", err);
+        console.error("ERROR EN VENTA:", err);
         res.status(500).send("Error en el servidor"); 
     }
 });
 
-// --- MOVIMIENTOS Y REPORTES ---
+// --- REPORTES Y MOVIMIENTOS ---
+
 app.get('/movimientos/todo', async (req, res) => {
     const { desde, hasta } = req.query;
     try {
