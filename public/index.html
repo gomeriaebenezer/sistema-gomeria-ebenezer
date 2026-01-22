@@ -16,7 +16,6 @@
             content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.4); z-index: -1;
         }
-        /* ESTILOS GALEANO SYSGEAR SOLUTIONS */
         .watermark-corner {
             position: fixed; bottom: 10px; right: 15px; font-size: 12px;
             color: rgba(255, 255, 255, 0.4); font-weight: bold; z-index: 10000; pointer-events: none;
@@ -33,7 +32,7 @@
             margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.3);
         }
         h2 { color: #1a73e8; margin-top: 0; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; align-items: end; }
         button { cursor: pointer; border: none; border-radius: 5px; font-weight: bold; padding: 12px; transition: 0.3s; }
         button:hover { opacity: 0.8; transform: translateY(-2px); }
         .btn-filtro { background: #6c757d; color: white; margin-right: 5px; padding: 8px 15px; }
@@ -60,7 +59,7 @@
     <div class="card no-print">
         <h2 id="tituloForm">📥 Registro / Entrada de Mercadería</h2>
         <form id="formProducto" class="form-grid">
-            <div><label>Nombre del Producto</label><input type="text" id="nombre" required style="width:100%; box-sizing:border-box;"></div>
+            <div><label>Nombre</label><input type="text" id="nombre" required style="width:100%; box-sizing:border-box;"></div>
             <div><label>Categoría</label>
                 <select id="categoria" style="width:100%;">
                     <option value="Parches">Parches</option>
@@ -72,8 +71,9 @@
             </div>
             <div><label>Costo ($)</label><input type="number" id="precio_costo" required style="width:100%;"></div>
             <div><label>Venta ($)</label><input type="number" id="precio_venta" required style="width:100%;"></div>
-            <div><label>Cantidad/Stock</label><input type="number" id="stock_actual" required style="width:100%;"></div>
-            <button type="submit" id="btnGuardar" style="background:#1a73e8; color:white;">GUARDAR / SUMAR</button>
+            <div><label style="color: #1a73e8; font-weight: bold;">Precio Extra ($)</label><input type="number" id="precio_adicional" value="0" style="width:100%; border: 1px solid #1a73e8;"></div>
+            <div><label>Stock</label><input type="number" id="stock_actual" required style="width:100%;"></div>
+            <button type="submit" id="btnGuardar" style="background:#1a73e8; color:white;">GUARDAR</button>
         </form>
     </div>
 
@@ -109,11 +109,11 @@
     </div>
 
     <div class="card no-print">
-        <h2>📋 Inventario (Búsqueda por Nombre o Código)</h2>
+        <h2>📋 Inventario</h2>
         <input type="text" id="buscador" placeholder="🔍 Escriba código # o nombre del producto..." onkeyup="buscar()" style="width:100%; padding:12px; margin-bottom:10px;">
         <div class="table-wrapper">
             <table>
-                <thead><tr><th>Cód.</th><th>Artículo</th><th>Cat.</th><th>Costo</th><th>Venta</th><th>Stock</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Cód.</th><th>Artículo</th><th>Cat.</th><th>Costo</th><th>Venta</th><th>Extra</th><th>Stock</th><th>Acciones</th></tr></thead>
                 <tbody id="tablaCuerpo"></tbody>
             </table>
         </div>
@@ -146,6 +146,7 @@
                 <td>${p.categoria}</td>
                 <td>$${p.precio_costo}</td>
                 <td>$${p.precio_venta}</td>
+                <td style="color:#1a73e8">$${p.precio_adicional || 0}</td>
                 <td>${isServ ? '∞' : p.stock_actual}</td>
                 <td>
                     <button class="btn-edit" onclick="prepararEdicion(${pString})">✏️</button>
@@ -156,7 +157,7 @@
     }
 
     async function borrarProducto(id) {
-        if (!confirm("¿Eliminar este producto permanentemente?")) return;
+        if (!confirm("¿Eliminar este producto?")) return;
         await fetch(`/productos/${id}`, { method: 'DELETE' });
         cargarStock();
     }
@@ -169,7 +170,6 @@
 
         const res = await fetch('/movimientos/todo');
         const movs = await res.json();
-        
         const tabla = document.getElementById('tablaMovimientos');
         let totalV = 0, totalG = 0, cats = {"Productos": 0, "Servicios": 0};
         tabla.innerHTML = '';
@@ -202,10 +202,8 @@
         movimientosActuales.forEach(m => {
             totalV += parseFloat(m.monto_operacion);
             totalG += parseFloat(m.ganancia_operacion || 0);
-            
             let c = m.descripcion.includes("(Servicio)") ? "Servicios" : "Productos";
             cats[c] += parseFloat(m.ganancia_operacion || 0);
-            
             const fechaHora = new Date(m.fecha).toLocaleString('es-AR');
             tabla.innerHTML += `<tr><td>${fechaHora}</td><td>${m.descripcion}</td><td>$${parseFloat(m.monto_operacion).toFixed(0)}</td></tr>`;
         });
@@ -235,26 +233,23 @@
             categoria: document.getElementById('categoria').value,
             precio_costo: document.getElementById('precio_costo').value,
             precio_venta: document.getElementById('precio_venta').value,
+            precio_adicional: document.getElementById('precio_adicional').value,
             stock_actual: document.getElementById('stock_actual').value
         };
         const url = editandoId ? `/productos/${editandoId}` : '/productos';
         const method = editandoId ? 'PUT' : 'POST';
         
-        const res = await fetch(url, { 
+        await fetch(url, { 
             method, 
             headers: {'Content-Type': 'application/json'}, 
             body: JSON.stringify(datos) 
         });
 
-        if(res.ok) {
-            editandoId = null;
-            document.getElementById('formProducto').reset();
-            document.getElementById('tituloForm').innerText = "📥 Registro / Entrada de Mercadería";
-            cargarStock(); 
-            cargarMovimientos('hoy');
-        } else {
-            alert("Error al guardar");
-        }
+        editandoId = null;
+        document.getElementById('formProducto').reset();
+        document.getElementById('tituloForm').innerText = "📥 Registro / Entrada de Mercadería";
+        cargarStock(); 
+        cargarMovimientos('hoy');
     });
 
     function prepararEdicion(p) {
@@ -263,6 +258,7 @@
         document.getElementById('categoria').value = p.categoria;
         document.getElementById('precio_costo').value = p.precio_costo;
         document.getElementById('precio_venta').value = p.precio_venta;
+        document.getElementById('precio_adicional').value = p.precio_adicional || 0;
         document.getElementById('stock_actual').value = p.stock_actual;
         document.getElementById('tituloForm').innerText = "✏️ Editando: " + p.nombre;
         window.scrollTo(0,0);
