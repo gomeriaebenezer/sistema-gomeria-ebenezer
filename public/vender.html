@@ -251,18 +251,49 @@
 
     function imprimirCierre() {
         const total = document.getElementById('totalRendir').innerText;
-        const contenido = document.getElementById('tablaCierre').innerHTML;
-        const ventana = window.open('', '', 'height=600,width=400');
-        ventana.document.write('<html><head><title>Cierre de Caja</title>');
-        ventana.document.write('<style>body{font-family:monospace;padding:20px} table{width:100%;border-collapse:collapse} td{padding:5px;border-bottom:1px solid #ccc}</style>');
-        ventana.document.write('</head><body>');
-        ventana.document.write('<h2>GOMERÍA - CIERRE DE CAJA</h2>');
-        ventana.document.write('<p>Fecha: ' + new Date().toLocaleDateString() + '</p>');
-        ventana.document.write('<table>' + contenido + '</table>');
-        ventana.document.write('<h3>' + total + '</h3>');
-        ventana.document.write('<script>window.print();window.close();<\/script>');
-        ventana.document.write('</body></html>');
-        ventana.document.close();
+        const filas = document.getElementById('tablaCierre').rows;
+        let detalleHTML = '';
+
+        for (let i = 0; i < filas.length; i++) {
+            const cels = filas[i].cells;
+            detalleHTML += `
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 5px 0;">
+                    <span>${cels[0].innerText} ${cels[1].innerText}</span>
+                    <span>${cels[2].innerText}</span>
+                </div>`;
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0';
+        iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow.document;
+        doc.write(`
+            <html>
+            <head>
+                <style>
+                    body { font-family: 'Courier New', Courier, monospace; width: 100%; padding: 10px; font-size: 14px; }
+                    h2 { text-align: center; margin-bottom: 5px; }
+                    .fecha { text-align: center; font-size: 12px; margin-bottom: 20px; }
+                    .total { font-size: 18px; font-weight: bold; text-align: right; margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <h2>GOMERÍA GALEANO</h2>
+                <div class="fecha">Cierre: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+                <div>${detalleHTML}</div>
+                <div class="total">${total}</div>
+            </body>
+            </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+        }, 500);
     }
 
     function buscar() {
