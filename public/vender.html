@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomería - Terminal de Ventas</title>
+    <title>Gomería Ebenezer - Terminal de Ventas</title>
     <style>
         body { 
             font-family: 'Segoe UI', sans-serif; 
@@ -273,17 +273,20 @@
             <html>
             <head>
                 <style>
-                    body { font-family: 'Courier New', Courier, monospace; width: 100%; padding: 10px; font-size: 14px; }
-                    h2 { text-align: center; margin-bottom: 5px; }
-                    .fecha { text-align: center; font-size: 12px; margin-bottom: 20px; }
+                    body { font-family: 'Courier New', Courier, monospace; width: 100%; padding: 10px; font-size: 14px; text-align: center; }
+                    h2 { margin-bottom: 5px; }
+                    .fecha { font-size: 12px; margin-bottom: 20px; }
+                    .detalle { text-align: left; margin-bottom: 10px; }
                     .total { font-size: 18px; font-weight: bold; text-align: right; margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; }
+                    .footer { font-size: 10px; margin-top: 30px; color: #666; border-top: 1px solid #eee; padding-top: 5px; }
                 </style>
             </head>
             <body>
-                <h2>GOMERÍA GALEANO</h2>
+                <h2>GOMERÍA EBENEZER</h2>
                 <div class="fecha">Cierre: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
-                <div>${detalleHTML}</div>
+                <div class="detalle">${detalleHTML}</div>
                 <div class="total">${total}</div>
+                <div class="footer">Sistema provisto por:<br><strong>Galeano SysGear Solutions</strong></div>
             </body>
             </html>
         `);
