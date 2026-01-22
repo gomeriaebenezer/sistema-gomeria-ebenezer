@@ -55,21 +55,23 @@
         }
         .modal-content {
             background-color: white; margin: 2% auto; padding: 20px;
-            border-radius: 15px; width: 90%; max-width: 550px; 
+            border-radius: 15px; width: 95%; max-width: 600px; 
             text-align: center; max-height: 90vh; display: flex; flex-direction: column;
         }
         #listaInsumos { overflow-y: auto; margin: 10px 0; flex-grow: 1; }
         
         .opcion-insumo {
-            display: flex; flex-direction: column; padding: 12px; border-bottom: 1px solid #eee; gap: 10px;
+            background: #fdfdfd; padding: 10px; border: 1px solid #eee; border-radius: 10px; margin-bottom: 8px;
         }
-        .insumo-header { display: flex; justify-content: space-between; align-items: center; }
-        .insumo-extra-box {
-            background: #f1f3f5; padding: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em;
+        .precio-row { 
+            display: flex; justify-content: space-between; align-items: center; padding: 5px 0;
         }
+        .badge-normal { color: #28a745; font-weight: bold; }
+        .badge-extra { color: #d63384; font-weight: bold; }
+
         .btn-cantidad {
-            background: #28a745; color: white; border: none; padding: 5px 12px;
-            border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.1em;
+            background: #28a745; color: white; border: none; width: 35px; height: 35px;
+            border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.2em;
         }
     </style>
 </head>
@@ -101,8 +103,8 @@
 
 <div id="modalInsumos" class="modal">
     <div class="modal-content">
-        <h2>¿Qué insumos usaste?</h2>
-        <input type="text" id="filtroInsumos" style="width:100%; padding:10px; margin-bottom:10px;" placeholder="🔎 Filtrar..." onkeyup="filtrarInsumos()">
+        <h2 id="tituloModal">¿Qué insumos usaste?</h2>
+        <input type="text" id="filtroInsumos" style="width:100%; padding:10px; margin-bottom:10px;" placeholder="🔎 Filtrar productos..." onkeyup="filtrarInsumos()">
         <div id="listaInsumos"></div>
         <button class="btn-cobrar" onclick="finalizarVentaCompleta()">CONFIRMAR VENTA TOTAL</button>
         <button style="margin-top:10px; background:#6c757d" class="btn-cobrar" onclick="cerrarModal()">CANCELAR</button>
@@ -111,7 +113,7 @@
 
 <script>
     let ventaServicioActual = null;
-    let insumosParaSumar = [];
+    let insumosSeleccionados = {}; // Formato: { id_producto: { normal: X, extra: Y } }
     let todosLosProductos = [];
 
     async function cargarTodo() { 
@@ -138,7 +140,7 @@
     function prepararCobro(producto) {
         if (producto.categoria === 'Servicio' || producto.categoria === 'Parches') {
             ventaServicioActual = producto;
-            insumosParaSumar = [];
+            insumosSeleccionados = {};
             abrirModal();
         } else {
             venderDirecto(producto.id_producto, producto.nombre);
@@ -146,48 +148,68 @@
     }
 
     function abrirModal() {
+        document.getElementById('tituloModal').innerText = `Venta: ${ventaServicioActual.nombre}`;
         const lista = document.getElementById('listaInsumos');
         lista.innerHTML = '';
+        
+        // Filtramos para mostrar solo productos que no sean el servicio base
         todosLosProductos.filter(p => p.categoria !== 'Servicio').forEach(ins => {
             lista.innerHTML += `
                 <div class="opcion-insumo" data-nombre="${ins.nombre.toLowerCase()}">
-                    <div class="insumo-header">
-                        <span><strong>${ins.nombre}</strong> ($${ins.precio_venta})</span>
+                    <div style="text-align:left; border-bottom:1px solid #eee; margin-bottom:5px;"><strong>${ins.nombre}</strong></div>
+                    
+                    <div class="precio-row">
+                        <span class="badge-normal">Precio Normal ($${ins.precio_venta})</span>
                         <div>
-                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCantidadInsumo(${ins.id_producto}, -1)">-</button>
-                            <span id="cant-${ins.id_producto}" style="margin: 0 10px; font-weight:bold;">0</span>
-                            <button class="btn-cantidad" onclick="cambiarCantidadInsumo(${ins.id_producto}, 1)">+</button>
+                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'normal', -1)">-</button>
+                            <span id="cant-normal-${ins.id_producto}" style="margin: 0 10px; font-weight:bold; min-width:20px; display:inline-block;">0</span>
+                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'normal', 1)">+</button>
                         </div>
                     </div>
-                    <div class="insumo-extra-box">
-                        <span>¿Es precio extra? (+$${ins.precio_adicional || 0})</span>
-                        <input type="checkbox" id="extra-${ins.id_producto}" style="transform: scale(1.5);">
+
+                    <div class="precio-row">
+                        <span class="badge-extra">Precio Extra ($${ins.precio_adicional || 0})</span>
+                        <div>
+                            <button class="btn-cantidad" style="background:#dc3545" onclick="cambiarCant(${ins.id_producto}, 'extra', -1)">-</button>
+                            <span id="cant-extra-${ins.id_producto}" style="margin: 0 10px; font-weight:bold; min-width:20px; display:inline-block;">0</span>
+                            <button class="btn-cantidad" onclick="cambiarCant(${ins.id_producto}, 'extra', 1)">+</button>
+                        </div>
                     </div>
                 </div>`;
         });
         document.getElementById('modalInsumos').style.display = 'block';
     }
 
-    function cambiarCantidadInsumo(id, cambio) {
-        const span = document.getElementById(`cant-${id}`);
-        let actual = parseInt(span.innerText) + cambio;
-        if (actual < 0) actual = 0;
-        span.innerText = actual;
-
-        insumosParaSumar = insumosParaSumar.filter(i => i.id !== id);
-        if (actual > 0) insumosParaSumar.push({ id, cantidad: actual });
+    function cambiarCant(id, tipo, cambio) {
+        if (!insumosSeleccionados[id]) insumosSeleccionados[id] = { normal: 0, extra: 0 };
+        
+        insumosSeleccionados[id][tipo] += cambio;
+        if (insumosSeleccionados[id][tipo] < 0) insumosSeleccionados[id][tipo] = 0;
+        
+        document.getElementById(`cant-${tipo}-${id}`).innerText = insumosSeleccionados[id][tipo];
     }
 
     async function finalizarVentaCompleta() {
+        // 1. Cobrar el servicio base
         await ejecutarVenta(ventaServicioActual.id_producto, false);
-        for (let item of insumosParaSumar) {
-            const esExtra = document.getElementById(`extra-${item.id}`).checked;
-            for (let k = 0; k < item.cantidad; k++) {
-                await ejecutarVenta(item.id, esExtra);
+
+        // 2. Cobrar cada insumo seleccionado
+        for (const id in insumosSeleccionados) {
+            const item = insumosSeleccionados[id];
+            
+            // Ventas a precio Normal
+            for (let i = 0; i < item.normal; i++) {
+                await ejecutarVenta(id, false);
+            }
+            // Ventas a precio Extra
+            for (let i = 0; i < item.extra; i++) {
+                await ejecutarVenta(id, true);
             }
         }
+
         cerrarModal();
         cargarTodo();
+        alert("Venta registrada con éxito.");
     }
 
     async function venderDirecto(id, nombre) {
@@ -231,7 +253,7 @@
     function filtrarInsumos() {
         const b = document.getElementById('filtroInsumos').value.toLowerCase();
         document.querySelectorAll('.opcion-insumo').forEach(i => {
-            i.style.display = i.getAttribute('data-nombre').includes(b) ? 'flex' : 'none';
+            i.style.display = i.getAttribute('data-nombre').includes(b) ? 'block' : 'none';
         });
     }
 
